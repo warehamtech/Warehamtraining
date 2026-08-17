@@ -79,8 +79,9 @@
       frame-ancestors 'none'
     """
 
-# The vendored library and the font are immutable — both are versioned by
-# content, and replacing either is a deliberate act.
+# The vendored library, the font and the brand images are immutable — all
+# versioned by content in spirit, and replacing any of them is a deliberate
+# act rather than a routine edit.
 [[headers]]
   for = "/assets/vendor/*"
   [headers.values]
@@ -91,13 +92,31 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# CSS and JS are edited in place, so they must revalidate.
+[[headers]]
+  for = "/assets/brand/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# CSS and JS ARE edited in place, so they can't be immutable — but
+# `max-age=0, must-revalidate` was forcing a round trip to Netlify for every
+# one of the ~15 shared files on every single page navigation, before the
+# page could even start rendering. That's the main cause of the "lag between
+# pages": nothing to do with page content, just this.
+#
+# `stale-while-revalidate` fixes it without giving up freshness: within the
+# 5-minute max-age, repeat requests are served straight from disk with zero
+# network cost — which covers the overwhelming majority of navigations within
+# one browsing session. Past that, the browser serves the (possibly stale)
+# cached copy INSTANTLY while it quietly re-checks in the background, so a
+# navigation is never blocked waiting on a revalidation response — the
+# worst case is one page seeing a version that's a few minutes old, which
+# then updates itself for the next request.
 [[headers]]
   for = "/assets/css/*"
   [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
+    Cache-Control = "public, max-age=300, stale-while-revalidate=86400"
 
 [[headers]]
   for = "/assets/js/*"
   [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
+    Cache-Control = "public, max-age=300, stale-while-revalidate=86400"
