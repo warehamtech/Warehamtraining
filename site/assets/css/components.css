@@ -464,6 +464,31 @@ textarea.control {
   background-color: var(--surface);
 }
 
+/* A sortable column header. Sits inside a plain <th>, styled to read as the
+   same muted label as a non-sortable one until hovered or active. */
+.table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink-subtle);
+  cursor: pointer;
+}
+
+.table-sort:hover,
+.table-sort--active {
+  color: var(--ink);
+}
+
+.table-sort__arrow {
+  display: inline-flex;
+  transition: transform 0.15s var(--ease-out-soft, ease);
+}
+
 /* --- Misc ----------------------------------------------------------------- */
 
 .link {

@@ -44,6 +44,7 @@ function navFor(role) {
     case "WHA_ADMIN":
       return [
         { href: "/admin/orders.html", label: "Orders" },
+        { href: "/admin/invoices.html", label: "Invoices" },
         { href: "/admin/programs.html", label: "Programmes" },
         { href: "/admin/learners.html", label: "Learners" },
         { href: "/programs/index.html", label: "Catalogue" },
