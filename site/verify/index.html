@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify a certificate — WHA Learning Portal</title>
+<meta name="description" content="Confirm that a Wareham &amp; Associates training certificate is genuine.">
+<link rel="icon" href="/assets/brand/wha-logo.png">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/layout.css">
+<script defer src="/assets/vendor/supabase.js"></script>
+<script type="module" src="/assets/js/pages/verify.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#app">Skip to content</a>
+<header id="site-header"></header>
+
+<main id="app" class="shell shell--narrow section">
+  <div class="center">
+    <span class="verify-mark" id="mark"></span>
+    <h1 class="display t-2xl mt-4">Verify a certificate</h1>
+    <p class="muted mt-2">
+      Enter the verification code printed on the certificate, or scan its QR
+      code, to confirm it was issued by Wareham &amp; Associates.
+    </p>
+  </div>
+
+  <section class="card mt-8">
+    <div class="card__body">
+      <form id="verify-form" class="stack" autocomplete="off">
+        <div class="field">
+          <label class="field__label" for="code">
+            Verification code<span class="field__required">*</span>
+          </label>
+          <input class="control code-input" id="code" name="code" required
+                 spellcheck="false" placeholder="XXXX-XXXX-XXXX" maxlength="14">
+          <p class="field__hint">For example: A7K2-M9PQ-3XTR</p>
+        </div>
+        <button class="btn btn--primary btn--lg btn--block" type="submit">
+          Verify certificate
+        </button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer id="site-footer"></footer>
+</body>
+</html>

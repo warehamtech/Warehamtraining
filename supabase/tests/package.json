@@ -1,0 +1,12 @@
+{
+  "name": "wha-schema-tests",
+  "private": true,
+  "type": "module",
+  "description": "Security and behaviour checks for the WHA Supabase schema. Run `npm install` here, then `node run.mjs`.",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

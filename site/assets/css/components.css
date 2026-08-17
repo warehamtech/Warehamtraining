@@ -1,0 +1,664 @@
+/* ---------------------------------------------------------------------------
+   Design-system primitives.
+
+   Each block below is one of the components that lived in
+   wha-portal/src/components/ui/. The Tailwind recipes are transcribed to real
+   CSS; the visual result is the same.
+--------------------------------------------------------------------------- */
+
+/* --- Button ---------------------------------------------------------------
+   variants: primary | accent | secondary | ghost | danger
+   sizes:    sm | md | lg
+   Accent is reserved for the single highest-intent action on a page (enrol,
+   download certificate). Overusing orange dilutes it.
+-------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding-inline: 1rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    color 150ms,
+    box-shadow 150ms,
+    transform 150ms;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.btn--sm {
+  height: 2rem;
+  padding-inline: 0.75rem;
+  gap: 0.375rem;
+}
+
+.btn--lg {
+  height: 3rem;
+  padding-inline: 1.5rem;
+  font-size: 1rem;
+}
+
+.btn--primary {
+  background-color: var(--brand-600);
+  color: var(--white);
+  box-shadow: var(--shadow-card);
+}
+.btn--primary:hover { background-color: var(--brand-700); }
+.btn--primary:active { background-color: var(--brand-800); }
+
+.btn--accent {
+  background-color: var(--accent-500);
+  color: var(--white);
+  box-shadow: var(--shadow-card);
+}
+.btn--accent:hover { background-color: var(--accent-600); }
+.btn--accent:active { background-color: var(--accent-700); }
+
+.btn--secondary {
+  background-color: var(--white);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.btn--secondary:hover {
+  background-color: var(--surface);
+  border-color: var(--line-strong);
+}
+
+.btn--ghost {
+  color: var(--brand-600);
+}
+.btn--ghost:hover { background-color: var(--brand-50); }
+
+.btn--danger {
+  background-color: var(--danger);
+  color: var(--white);
+}
+.btn--danger:hover { filter: brightness(1.1); }
+
+/* On a dark hero, the secondary action is a translucent outline. */
+.btn--on-dark {
+  border-color: rgb(255 255 255 / 0.25);
+  background-color: rgb(255 255 255 / 0.1);
+  color: var(--white);
+}
+.btn--on-dark:hover { background-color: rgb(255 255 255 / 0.2); }
+
+.btn--block {
+  width: 100%;
+}
+
+/* Spinner shown while a form is submitting (the old SubmitButton). */
+.btn__spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--radius-full);
+  animation: wha-spin 0.6s linear infinite;
+}
+
+/* --- Card ----------------------------------------------------------------- */
+
+.card {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-card);
+}
+
+.card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 1.25rem;
+}
+
+.card__header h2 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.card__header p {
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  color: var(--ink-subtle);
+}
+
+.card__body {
+  padding: 1rem 1.25rem;
+}
+
+.card__footer {
+  border-top: 1px solid var(--line);
+  padding: 1rem 1.25rem;
+}
+
+/* Neutral placeholder for "nothing here yet" states. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3.5rem 1.5rem;
+  text-align: center;
+}
+
+.empty__icon {
+  margin-bottom: 0.75rem;
+  color: var(--ink-subtle);
+}
+
+.empty__title {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.empty__desc {
+  margin-top: 0.25rem;
+  max-width: 24rem;
+  font-size: 0.875rem;
+  color: var(--ink-subtle);
+}
+
+.empty__action {
+  margin-top: 1rem;
+}
+
+/* Dashed variant, used for the empty catalogue on the landing page. */
+.empty--dashed {
+  border-radius: var(--radius-card);
+  border: 1px dashed var(--line-strong);
+  background-color: var(--white);
+  font-size: 0.875rem;
+  color: var(--ink-subtle);
+}
+
+/* --- Badge ---------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: var(--surface);
+  color: var(--ink-muted);
+}
+
+.badge--brand {
+  background-color: var(--brand-50);
+  color: var(--brand-700);
+  border-color: var(--brand-100);
+}
+
+.badge--success {
+  background-color: var(--success-soft);
+  color: var(--success);
+  border-color: rgb(19 97 46 / 0.2);
+}
+
+/* Awaiting payment is a normal, expected state — amber, not red. */
+.badge--warn {
+  background-color: var(--warn-soft);
+  color: var(--accent-700);
+  border-color: rgb(245 165 36 / 0.3);
+}
+
+.badge--danger {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  border-color: rgb(184 33 5 / 0.2);
+}
+
+.badge--accent {
+  background-color: var(--accent-50);
+  color: var(--accent-700);
+  border-color: var(--accent-200);
+}
+
+/* --- Form controls -------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.field__label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.field__required {
+  margin-left: 0.125rem;
+  color: var(--danger);
+}
+
+.field__hint {
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+}
+
+.field__error {
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+
+.control {
+  width: 100%;
+  height: 2.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  padding-inline: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ink);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+textarea.control {
+  height: auto;
+  padding-block: 0.5rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.control::placeholder {
+  color: var(--ink-subtle);
+}
+
+.control:focus {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 2px rgb(6 71 155 / 0.15);
+}
+
+.control:disabled {
+  background-color: var(--surface);
+  color: var(--ink-subtle);
+}
+
+.control[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* Inline form-level error, shown above the submit button. */
+.form-error {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgb(184 33 5 / 0.2);
+  background-color: var(--danger-soft);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
+.form-success {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgb(19 97 46 / 0.2);
+  background-color: var(--success-soft);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--success);
+}
+
+.form-note {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--brand-100);
+  background-color: var(--info-soft);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--brand-800);
+}
+
+/* Radio and checkbox rows, used by the quiz runner and checkout. */
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  padding: 0.875rem 1rem;
+  font-size: 0.9375rem;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 150ms, background-color 150ms, box-shadow 150ms;
+}
+
+.choice:hover {
+  border-color: var(--brand-300);
+  background-color: var(--brand-50);
+}
+
+.choice[aria-checked="true"],
+.choice:has(input:checked) {
+  border-color: var(--brand-600);
+  background-color: var(--brand-50);
+  box-shadow: 0 0 0 1px var(--brand-600);
+}
+
+.choice input {
+  margin-top: 0.2rem;
+  accent-color: var(--brand-600);
+}
+
+/* --- Progress ------------------------------------------------------------- */
+
+/* Always render a bar next to a countable label ("8 of 24 lessons") — a bare
+   percentage is less legible to a learner than a count they can reconcile
+   against the curriculum list. */
+.progress {
+  width: 100%;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background-color: var(--line);
+  overflow: hidden;
+}
+
+.progress--sm { height: 0.375rem; }
+.progress--lg { height: 0.75rem; }
+
+.progress__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background-color: var(--brand-600);
+  transition: width 500ms var(--ease-out-soft);
+}
+
+.progress--success .progress__fill {
+  background-color: var(--success);
+}
+
+.ring {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ring svg {
+  transform: rotate(-90deg);
+}
+
+.ring__track {
+  fill: none;
+  stroke: var(--line);
+}
+
+.ring__fill {
+  fill: none;
+  stroke: var(--brand-600);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 500ms var(--ease-out-soft);
+}
+
+.ring--success .ring__fill {
+  stroke: var(--success);
+}
+
+.ring__value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Table ---------------------------------------------------------------- */
+
+.table {
+  width: 100%;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.table th {
+  padding: 0.625rem 1rem;
+  font-weight: 500;
+  color: var(--ink-subtle);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background-color: var(--surface);
+}
+
+/* --- Misc ----------------------------------------------------------------- */
+
+.link {
+  color: var(--brand-600);
+}
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--brand-600);
+}
+
+.muted { color: var(--ink-muted); }
+.subtle { color: var(--ink-subtle); }
+
+.dl {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.dl dt { color: var(--ink-subtle); }
+.dl dd { color: var(--ink); text-align: right; }
+
+/* The money block on an invoice: a rule above the total so the three figures
+   read as a sum. */
+.dl--totals {
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+.dl-total {
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+}
+
+/* Status banners — the tone carries the meaning, so each state is
+   recognisable before the text is read. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  padding: 1rem 1.25rem;
+}
+
+.notice--warn { border-color: rgb(245 165 36 / 0.3); background-color: var(--warn-soft); }
+.notice--info { border-color: var(--brand-100); background-color: var(--brand-50); }
+.notice--success { border-color: rgb(19 97 46 / 0.2); background-color: var(--success-soft); }
+.notice--danger { border-color: rgb(184 33 5 / 0.2); background-color: var(--danger-soft); }
+.notice--danger svg { color: var(--danger); }
+
+/* Buyer type picker on checkout. */
+.buyer-choice {
+  display: grid;
+  gap: 0.625rem;
+}
+
+@media (min-width: 640px) {
+  .buyer-choice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.choice--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.choice--disabled:hover {
+  border-color: var(--line);
+  background-color: var(--white);
+}
+
+.block { display: block; }
+
+/* Full-page loading and error states rendered by the page modules before
+   their data arrives. */
+.page-state {
+  padding: 4rem 1.5rem;
+  text-align: center;
+  color: var(--ink-subtle);
+  font-size: 0.875rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Small utilities.
+
+   Deliberately a short list: enough that the page modules read as markup
+   rather than as style objects, but not a utility framework. Anything used on
+   one page only belongs in that page's own rule, not here.
+--------------------------------------------------------------------------- */
+
+.t-xs { font-size: 0.75rem; }
+.t-sm { font-size: 0.875rem; }
+.t-md { font-size: 1rem; }
+.t-lg { font-size: 1.125rem; }
+.t-xl { font-size: 1.25rem; }
+.t-2xl { font-size: 1.5rem; }
+.t-3xl { font-size: 1.875rem; }
+
+.medium { font-weight: 500; }
+.bold { font-weight: 700; }
+.center { text-align: center; }
+.right { text-align: right; }
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.grow { flex: 1; min-width: 0; }
+.nowrap { white-space: nowrap; }
+
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 0.75rem; }
+.mt-4 { margin-top: 1rem; }
+.mt-6 { margin-top: 1.5rem; }
+.mt-8 { margin-top: 2rem; }
+
+.measure { max-width: 42rem; }
+.measure-narrow { max-width: 30rem; }
+
+/* Icons tinted to the palette, for the inline feature lists. */
+.i-brand { color: var(--brand-600); flex-shrink: 0; }
+.i-accent { color: var(--accent-500); flex-shrink: 0; }
+.i-success { color: var(--success); flex-shrink: 0; }
+.i-subtle { color: var(--ink-subtle); flex-shrink: 0; }
+
+/* A list of short feature/benefit lines with a leading icon. */
+.feature-list {
+  display: grid;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+.feature-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.feature-list--divided {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
+}
+
+/* Curriculum listing on the programme sales page. */
+.curriculum-preview {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+  display: grid;
+  gap: 0.375rem;
+}
+
+.curriculum-preview li {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+.curriculum-preview li.is-quiz {
+  padding-top: 0.25rem;
+  color: var(--ink);
+}
+
+.course-number {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--brand-600);
+  font-variant-numeric: tabular-nums;
+}
+
+.price {
+  font-size: 1.875rem;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}

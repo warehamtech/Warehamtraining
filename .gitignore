@@ -1,0 +1,18 @@
+# Claude Code local/machine-specific settings — not meant to be shared.
+.claude/settings.local.json
+
+# Node, in case anyone installs deps locally (e.g. supabase/tests/).
+node_modules/
+
+# Env files. The site itself has no secrets to hide — the Supabase anon key
+# in site/assets/js/env.js is meant to be public, see the comment there — but
+# keep the guard rail in case one ever gets created (e.g. for Edge Function
+# local dev with a service_role key).
+.env
+.env.local
+.env.*.local
+
+# OS / editor junk.
+Thumbs.db
+.DS_Store
+*.swp

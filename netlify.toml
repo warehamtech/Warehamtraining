@@ -1,0 +1,103 @@
+# Netlify deployment for the WHA Learning Portal.
+#
+# There is no build step: `site/` is the finished website. Netlify serves the
+# folder exactly as it is on disk, which is also why you can open any page
+# locally without a server.
+
+[build]
+  publish = "site"
+  # No command. If Netlify offers to auto-detect a framework, decline it.
+  command = ""
+
+[build.environment]
+  # Nothing to install.
+  NETLIFY_USE_YARN = "false"
+
+# Pretty URLs: /programs serves /programs/index.html, /login serves /login.html.
+[[redirects]]
+  from = "/login"
+  to = "/login.html"
+  status = 200
+
+[[redirects]]
+  from = "/register"
+  to = "/register.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/dashboard.html"
+  status = 200
+
+[[redirects]]
+  from = "/certificates"
+  to = "/certificates.html"
+  status = 200
+
+[[redirects]]
+  from = "/checkout"
+  to = "/checkout.html"
+  status = 200
+
+[[redirects]]
+  from = "/invite"
+  to = "/invite.html"
+  status = 200
+
+# Anything genuinely missing gets the styled 404 rather than Netlify's own.
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    # The site loads no third-party code: the Supabase library is vendored and
+    # the font is self-hosted. connect-src has to allow the Supabase project
+    # (PostgREST, Auth, Storage and Edge Functions all live on that origin) —
+    # replace YOUR-PROJECT-REF here as well as in assets/js/env.js.
+    #
+    # frame-src allows the video embeds a lesson may carry. Trim it to the
+    # providers you actually use.
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: blob:;
+      font-src 'self';
+      media-src 'self' blob: https://*.supabase.co;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co;
+      frame-src https://player.vimeo.com https://www.youtube.com https://www.youtube-nocookie.com;
+      object-src 'self' blob:;
+      base-uri 'self';
+      form-action 'self';
+      frame-ancestors 'none'
+    """
+
+# The vendored library and the font are immutable — both are versioned by
+# content, and replacing either is a deliberate act.
+[[headers]]
+  for = "/assets/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/assets/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# CSS and JS are edited in place, so they must revalidate.
+[[headers]]
+  for = "/assets/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/assets/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

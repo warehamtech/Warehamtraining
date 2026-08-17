@@ -1,0 +1,435 @@
+/* ---------------------------------------------------------------------------
+   The player: curriculum sidebar beside a content pane, with a sticky
+   "mark complete → next lesson" bar. Ports src/components/learn/.
+--------------------------------------------------------------------------- */
+
+.player {
+  display: grid;
+  gap: 1.5rem;
+  padding-block: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .player {
+    grid-template-columns: 20rem minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+  }
+}
+
+@media (min-width: 1024px) {
+  .curriculum {
+    position: sticky;
+    top: calc(var(--header-h) + 1rem);
+    align-self: start;
+  }
+}
+
+/* Mobile disclosure — on desktop the list is always open. */
+.curriculum__toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  padding: 0.75rem 1rem;
+  text-align: left;
+  box-shadow: var(--shadow-card);
+}
+
+.curriculum__toggle strong {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.curriculum__toggle span.count {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.curriculum__toggle svg {
+  flex-shrink: 0;
+  color: var(--ink-subtle);
+  transition: transform 200ms;
+}
+
+.curriculum__toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.curriculum__nav {
+  margin-top: 0.75rem;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-card);
+}
+
+.curriculum__nav[hidden] { display: none; }
+
+@media (min-width: 1024px) {
+  .curriculum__toggle { display: none; }
+  .curriculum__nav { margin-top: 0; }
+  /* The disclosure state is a mobile concern; always show it on desktop. */
+  .curriculum__nav[hidden] { display: block; }
+}
+
+.curriculum__head {
+  border-bottom: 1px solid var(--line);
+  padding: 1rem;
+}
+
+.curriculum__head strong {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.curriculum__head p {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.curriculum__head .progress { margin-top: 0.5rem; }
+
+.curriculum__course {
+  padding-block: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.curriculum__course:last-child { border-bottom: none; }
+
+.curriculum__course-head {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-inline: 1rem;
+}
+
+.curriculum__course-head .label {
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+}
+
+.curriculum__course-head .title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.curriculum__lessons { margin-top: 0.375rem; }
+
+.curriculum__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.375rem 0.75rem 0.375rem 1rem;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+  border-left: 2px solid transparent;
+  transition: background-color 150ms, color 150ms;
+}
+
+.curriculum__item:hover {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+.curriculum__item[aria-current="page"] {
+  border-left-color: var(--brand-600);
+  background-color: var(--brand-50);
+  color: var(--brand-700);
+  padding-left: calc(1rem - 2px);
+}
+
+.curriculum__item .text { flex: 1; min-width: 0; }
+
+.curriculum__item .type-icon {
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+  color: var(--ink-subtle);
+}
+
+/* The per-lesson tick. */
+.tick {
+  margin-top: 0.125rem;
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line-strong);
+  background-color: var(--white);
+  color: transparent;
+  transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+
+.tick--done {
+  border-color: var(--success);
+  background-color: var(--success);
+  color: var(--white);
+}
+
+/* An assessment node: orange until passed, then green like a lesson. */
+.tick--quiz {
+  border-color: var(--accent-300);
+  background-color: var(--accent-50);
+}
+
+.curriculum__item--quiz .text { font-weight: 500; }
+
+.curriculum__item--quiz .type-icon { color: var(--accent-500); }
+
+.curriculum__item--locked {
+  color: var(--ink-subtle);
+  cursor: default;
+}
+
+.curriculum__item--locked:hover { background-color: transparent; color: var(--ink-subtle); }
+
+.curriculum__item--locked .tick {
+  border-color: var(--line-strong);
+  background-color: var(--surface);
+}
+
+/* --- Content pane --------------------------------------------------------- */
+
+.lesson__head {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.lesson__eyebrow {
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+}
+
+.lesson__head h1 {
+  margin-top: 0.25rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.lesson__body { padding-block: 1.5rem; }
+
+/* 16:9 frame for embedded or self-hosted video. */
+.video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background-color: #000;
+  border: 1px solid var(--line);
+}
+
+.video-frame iframe,
+.video-frame video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.pdf-frame {
+  width: 100%;
+  height: min(80vh, 50rem);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+}
+
+.resources {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.resource {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  transition: border-color 150ms, background-color 150ms;
+}
+
+.resource:hover {
+  border-color: var(--brand-200);
+  background-color: var(--brand-50);
+}
+
+.resource svg { flex-shrink: 0; color: var(--brand-600); }
+.resource .name { flex: 1; min-width: 0; color: var(--ink); }
+.resource .size { font-size: 0.75rem; color: var(--ink-subtle); }
+
+/* --- Sticky action bar ---------------------------------------------------- */
+
+.lesson__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  background-color: rgb(255 255 255 / 0.95);
+  backdrop-filter: blur(4px);
+  padding-block: 0.75rem;
+}
+
+.lesson__foot .row { flex-wrap: wrap; }
+
+/* The tick inside the "Mark as complete" button. */
+.btn .tick {
+  margin-top: 0;
+  border-color: rgb(255 255 255 / 0.5);
+  background-color: transparent;
+}
+
+.btn .tick--done {
+  border-color: var(--success);
+  background-color: var(--success);
+  color: var(--white);
+}
+
+/* --- Quiz runner ---------------------------------------------------------- */
+
+.quiz {
+  max-width: 44rem;
+  margin-inline: auto;
+}
+
+.quiz__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ink-subtle);
+}
+
+.quiz__progress {
+  margin-block: 1.25rem;
+}
+
+.quiz__question {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.quiz__choices {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 0.625rem;
+}
+
+.quiz__nav {
+  margin-top: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Review-before-submit list. */
+.quiz__review {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quiz__review-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.quiz__review-row .q { color: var(--ink); }
+.quiz__review-row .a { color: var(--ink-subtle); text-align: right; }
+.quiz__review-row--unanswered { border-color: var(--warn); background-color: var(--warn-soft); }
+
+/* Result screen. */
+.quiz__score {
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  padding-block: 2rem;
+  text-align: center;
+}
+
+.quiz__score-value {
+  font-size: 3rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.quiz__score--pass .quiz__score-value { color: var(--success); }
+/* A failed attempt with retries left is amber, not red — it is a setback, not
+   an error. */
+.quiz__score--fail .quiz__score-value { color: var(--accent-600); }
+
+.result-mark {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-full);
+  color: var(--white);
+}
+
+/* Per-question feedback after submission. */
+.quiz__feedback {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.quiz__feedback-item {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  padding: 0.875rem 1rem;
+}
+
+.quiz__feedback-item--correct {
+  border-color: rgb(19 97 46 / 0.25);
+  background-color: var(--success-soft);
+}
+
+.quiz__feedback-item--wrong {
+  border-color: rgb(184 33 5 / 0.2);
+  background-color: var(--danger-soft);
+}
+
+.quiz__feedback-item p { font-size: 0.875rem; }
+
+.quiz__feedback-item .prompt { font-weight: 500; color: var(--ink); }
+
+.quiz__feedback-item .explanation {
+  margin-top: 0.5rem;
+  color: var(--ink-muted);
+}

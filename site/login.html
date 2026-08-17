@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — WHA Learning Portal</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/brand/wha-logo.png">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<link rel="stylesheet" href="/assets/css/layout.css">
+<script defer src="/assets/vendor/supabase.js"></script>
+<script type="module" src="/assets/js/pages/login.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#app">Skip to content</a>
+<header id="site-header"></header>
+
+<main id="app" class="shell auth-page">
+  <div class="auth-card">
+    <div class="center">
+      <a href="/" aria-label="Wareham &amp; Associates home">
+        <img src="/assets/brand/wha-logo.png" alt="Wareham &amp; Associates"
+             width="160" height="62" style="width:160px;height:auto;margin:0 auto">
+      </a>
+      <h1 class="display t-2xl mt-6">Sign in</h1>
+      <p class="muted t-sm mt-2">Welcome back. Pick up where you left off.</p>
+    </div>
+
+    <section class="card mt-6">
+      <div class="card__body">
+        <form id="login-form" novalidate>
+          <div data-message></div>
+
+          <div class="field">
+            <label class="field__label" for="email">Email<span class="field__required">*</span></label>
+            <input class="control" id="email" name="email" type="email" required
+                   autocomplete="email" autocapitalize="off" spellcheck="false">
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="password">Password<span class="field__required">*</span></label>
+            <input class="control" id="password" name="password" type="password"
+                   required autocomplete="current-password">
+          </div>
+
+          <div class="row row--between">
+            <button class="link t-sm" type="button" id="forgot">Forgotten your password?</button>
+          </div>
+
+          <button class="btn btn--primary btn--block" type="submit">Sign in</button>
+        </form>
+      </div>
+    </section>
+
+    <p class="auth-foot">
+      Don't have an account? <a class="link" href="/register.html" id="register-link">Create one</a>
+    </p>
+  </div>
+</main>
+
+<footer id="site-footer"></footer>
+</body>
+</html>
