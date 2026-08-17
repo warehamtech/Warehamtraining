@@ -10,6 +10,7 @@ import { formatMoney } from "../money.js";
 import { banking, company, orderStatus } from "../config.js";
 import { downloadInvoice } from "../pdf.js";
 import { sendMail } from "../mail.js";
+import { compressProofImage } from "../image-compress.js";
 
 /** Port of src/app/(app)/orders/[id]/ — page + proof-upload. */
 
@@ -115,15 +116,24 @@ function proofUpload(order, onDone) {
 
     const submit = form.querySelector("button");
     submit.disabled = true;
+    submit.replaceChildren(el("span", { class: "btn__spinner" }), "Compressing…");
+
+    // Screenshots routinely arrive as multi-megabyte PNGs; shrinking them here
+    // is what keeps the proofs bucket small as invoice volume grows. `original`
+    // stays the true filename for the admin's record even though the bytes
+    // actually stored may now be a smaller re-encoded JPEG.
+    const original = file;
+    const stored = await compressProofImage(file);
+
     submit.replaceChildren(el("span", { class: "btn__spinner" }), "Uploading…");
 
     // The bucket policy keys off the first path segment being the order id, so
     // this is also what authorises the write.
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
+    const safeName = stored.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
     const key = `${order.id}/${crypto.randomUUID()}-${safeName}`;
 
-    const upload = await sb.storage.from("proofs").upload(key, file, {
-      contentType: file.type,
+    const upload = await sb.storage.from("proofs").upload(key, stored, {
+      contentType: stored.type,
       upsert: false,
     });
 
@@ -136,9 +146,9 @@ function proofUpload(order, onDone) {
     const row = await sb.from("payment_proofs").insert({
       order_id: order.id,
       file_key: key,
-      original_name: file.name,
-      content_type: file.type,
-      size_bytes: file.size,
+      original_name: original.name,
+      content_type: stored.type,
+      size_bytes: stored.size,
       note: note.value.trim() || null,
       uploaded_by_id: (await sb.auth.getUser()).data.user.id,
     });

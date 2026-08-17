@@ -10,7 +10,8 @@ import { orderStatus } from "../config.js";
 /**
  * The full invoice ledger, distinct from /admin/orders.html — Orders is the
  * action queue ("what needs my attention"), this is every invoice ever
- * issued, sortable the way an accounts view needs to be.
+ * issued, with several independent ways to find the one you want: a status
+ * filter, a free-text search, and click-to-sort on every column.
  */
 
 const STATUS_FILTERS = [
@@ -24,9 +25,10 @@ const STATUS_FILTERS = [
 const COLUMNS = [
   { key: "invoice_number", label: "Invoice", sortable: true },
   { key: "billing_name", label: "Billed to", sortable: true },
-  { key: "program", label: "Programme", sortable: false },
+  { key: "program", label: "Programme", sortable: true },
   { key: "seats", label: "Seats", sortable: true },
   { key: "total_cents", label: "Total", sortable: true },
+  { key: "proof", label: "Proof", sortable: true },
   { key: "status", label: "Status", sortable: true },
   { key: "issued_at", label: "Date", sortable: true },
 ];
@@ -34,11 +36,25 @@ const COLUMNS = [
 function compare(a, b, key) {
   if (key === "program") return (a.program?.title ?? "").localeCompare(b.program?.title ?? "");
   if (key === "status") return orderStatus[a.status].label.localeCompare(orderStatus[b.status].label);
+  if (key === "proof") return (a.payment_proofs?.length ?? 0) - (b.payment_proofs?.length ?? 0);
   const va = a[key];
   const vb = b[key];
   if (typeof va === "number") return va - vb;
   if (key === "issued_at") return new Date(va) - new Date(vb);
   return String(va ?? "").localeCompare(String(vb ?? ""));
+}
+
+/** invoice number, billed-to name and email, and programme title — enough to
+ *  find "that invoice from Cape Foods" without knowing the exact number. */
+function matchesSearch(order, term) {
+  if (!term) return true;
+  const haystack = [
+    order.invoice_number,
+    order.billing_name,
+    order.billing_email,
+    order.program?.title,
+  ].join(" ").toLowerCase();
+  return haystack.includes(term);
 }
 
 function sortHeaderCell(column, sort, onSort) {
@@ -57,6 +73,15 @@ function sortHeaderCell(column, sort, onSort) {
           style: { transform: sort.dir === "asc" ? "rotate(180deg)" : "none" },
         }, icon("chevronDown", 12, { strokeWidth: 2.5 }))
       : null,
+  ]);
+}
+
+function proofCell(order) {
+  const count = order.payment_proofs?.length ?? 0;
+  if (!count) return el("span", { class: "subtle t-xs" }, "None");
+  return el("span", { class: "row t-xs", style: { gap: "0.25rem", color: "var(--success)" } }, [
+    icon("fileText", 13),
+    count > 1 ? `${count} files` : "Attached",
   ]);
 }
 
@@ -81,6 +106,7 @@ function invoiceRow(order) {
     el("td", {}, order.program?.title ?? "—"),
     el("td", { class: "tabular" }, String(order.seats)),
     el("td", { class: "tabular medium" }, formatMoney(order.total_cents)),
+    el("td", {}, proofCell(order)),
     el("td", {}, badge(state.label, state.tone)),
     el("td", { class: "tabular t-xs" }, formatDate(order.issued_at)),
   ]);
@@ -102,16 +128,14 @@ page(async () => {
     .select(`
       id, invoice_number, status, buyer_type, seats, total_cents, issued_at,
       billing_name, billing_email,
-      program:programs ( title )
+      program:programs ( title ),
+      payment_proofs ( id )
     `)
     .then(unwrap);
 
-  const filtered = statusFilter.statuses
+  const byStatus = statusFilter.statuses
     ? orders.filter((o) => statusFilter.statuses.includes(o.status))
     : orders;
-
-  const sorted = [...filtered].sort((a, b) =>
-    (compare(a, b, sort.key) || 0) * (sort.dir === "asc" ? 1 : -1));
 
   const sum = (rows) => rows.reduce((total, o) => total + o.total_cents, 0);
   const collected = sum(orders.filter((o) => o.status === "PAID"));
@@ -132,11 +156,39 @@ page(async () => {
     location.href = `/admin/invoices.html?${params.toString()}`;
   };
 
+  // Search is the one filter that stays entirely client-side — it re-renders
+  // the table in place against the data already fetched, rather than
+  // reloading the page the way the status filter and column sort do.
+  function renderTable(searchTerm) {
+    const term = searchTerm.trim().toLowerCase();
+    const rows = byStatus.filter((o) => matchesSearch(o, term));
+    const sorted = [...rows].sort((a, b) =>
+      (compare(a, b, sort.key) || 0) * (sort.dir === "asc" ? 1 : -1));
+
+    mount("#invoice-table",
+      sorted.length
+        ? card([
+            cardHeader(statusFilter.label, {
+              description: `${sorted.length} of ${byStatus.length} ${byStatus.length === 1 ? "invoice" : "invoices"}`,
+            }),
+            table(
+              COLUMNS.map((column) => sortHeaderCell(column, sort, onSort)),
+              sorted.map(invoiceRow)),
+          ])
+        : card(emptyState({
+            iconName: "receipt",
+            title: "No invoices match",
+            description: term
+              ? `Nothing matches "${searchTerm}". Try a different search or filter.`
+              : "Try a different filter.",
+          })));
+  }
+
   mount("#app",
     el("div", { class: "page-head" }, [
       el("div", {}, [
         el("h1", { class: "display" }, "Invoices"),
-        el("p", {}, "Every invoice issued, individual and team. Click a column to sort."),
+        el("p", {}, "Every invoice issued, individual and team. Search, filter or click a column to sort."),
       ]),
     ]),
 
@@ -147,26 +199,26 @@ page(async () => {
       stat("Outstanding", formatMoney(outstanding)),
     ]),
 
-    el("nav", { class: "tabs mt-6", "aria-label": "Filter by status" },
-      STATUS_FILTERS.map((entry) =>
-        el("a", {
-          href: setParam("status", entry.key === "all" ? null : entry.key),
-          class: "tab",
-          "aria-current": entry.key === statusFilter.key ? "page" : null,
-        }, entry.label))),
+    el("div", { class: "row row--between row--wrap mt-6", style: { alignItems: "center" } }, [
+      el("nav", { class: "tabs", "aria-label": "Filter by status" },
+        STATUS_FILTERS.map((entry) =>
+          el("a", {
+            href: setParam("status", entry.key === "all" ? null : entry.key),
+            class: "tab",
+            "aria-current": entry.key === statusFilter.key ? "page" : null,
+          }, entry.label))),
 
-    sorted.length
-      ? card([
-          cardHeader(statusFilter.label, {
-            description: `${sorted.length} ${sorted.length === 1 ? "invoice" : "invoices"}`,
-          }),
-          table(
-            COLUMNS.map((column) => sortHeaderCell(column, sort, onSort)),
-            sorted.map(invoiceRow)),
-        ], { className: "mt-4" })
-      : card(emptyState({
-          iconName: "receipt",
-          title: "No invoices here",
-          description: "Try a different filter.",
-        }), { className: "mt-4" }));
+      el("input", {
+        type: "search",
+        class: "control",
+        placeholder: "Search invoice, name or email…",
+        "aria-label": "Search invoices",
+        style: { maxWidth: "20rem" },
+        onInput: (event) => renderTable(event.target.value),
+      }),
+    ]),
+
+    el("div", { id: "invoice-table", class: "mt-4" }));
+
+  renderTable("");
 });

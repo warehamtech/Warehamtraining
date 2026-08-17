@@ -161,6 +161,33 @@ The bar counts *steps* (one per lesson plus one per assessment), so it reaches
 100% exactly when the certificate unlocks rather than sitting at 100% while a
 failed assessment silently blocks it.
 
+### Proof-of-payment storage
+
+Every proof of payment stays in the private `proofs` Storage bucket for as
+long as the order exists — **not** emailed instead of stored, and not deleted
+after activation. South African tax law (SARS) requires financial records to
+be kept for five years, and email is not an access-controlled, auditable
+record tied to the order the way a Storage object gated by
+[RLS](supabase/migrations/0004_storage.sql) is; it's a fine *notification*
+channel (which is what `send-mail` uses it for), a poor system of record.
+
+What actually controls the bucket's size is file size, not retention, so
+`site/assets/js/image-compress.js` downscales and re-encodes image proofs
+(screenshots, mostly) to a JPEG capped at 1600px on the long edge before
+upload — typically a 50-90% reduction with no loss anyone reviewing a
+reference number and an amount would notice. PDFs pass through untouched;
+they're usually small already. The bucket's own 10 MB per-file cap
+(`supabase/migrations/0004_storage.sql`) is the backstop.
+
+In practice this keeps the bucket small on its own: at, say, 300 invoices a
+year and ~150 KB per compressed proof, that's under 50 MB/year — Supabase's
+free tier alone (1 GB) covers well over a decade of that, and the paid tiers'
+overage pricing (a few cents per GB) makes this a non-problem even at much
+higher volume. If it's ever genuinely worth revisiting — many years in, at a
+much larger training business — the option is a scheduled job that moves
+proofs attached to orders older than N years to cheaper cold storage, not a
+change to what's kept.
+
 ---
 
 ## Security

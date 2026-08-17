@@ -3,6 +3,7 @@ import { icon } from "./icons.js";
 import { buttonLink } from "./ui.js";
 import { company, roleLabels } from "./config.js";
 import { getUser, homeFor, signOut } from "./session.js";
+import { track } from "./analytics.js";
 
 /**
  * The page chrome: public header, app header, user menu and footer.
@@ -47,6 +48,7 @@ function navFor(role) {
         { href: "/admin/invoices.html", label: "Invoices" },
         { href: "/admin/programs.html", label: "Programmes" },
         { href: "/admin/learners.html", label: "Learners" },
+        { href: "/admin/stats.html", label: "Statistics" },
         { href: "/programs/index.html", label: "Catalogue" },
       ];
     case "ORG_ADMIN":
@@ -149,6 +151,7 @@ export async function renderPublicHeader(target = "#site-header") {
   const host = document.querySelector(target);
   if (!host) return;
 
+  track();
   const user = await getUser();
   host.className = "site-header";
   host.replaceChildren(
@@ -176,6 +179,7 @@ export async function renderAppHeader(user, target = "#site-header") {
   const host = document.querySelector(target);
   if (!host) return;
 
+  track();
   const items = navFor(user.role);
   host.className = "site-header";
   host.replaceChildren(
