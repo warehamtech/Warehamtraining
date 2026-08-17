@@ -12,7 +12,6 @@ production: `site/` is the website.
 ```
 site/                the website — this is what Netlify serves
 supabase/            database schema, security policies, functions
-wha-portal/          the original Next.js app, kept for reference
 ```
 
 ---
@@ -207,17 +206,13 @@ node run.mjs
 
 That rebuilds a throwaway database from the migrations and drives a full
 purchase → activate → learn → assess → certify flow as the real roles, probing
-each boundary above. It needs a Postgres to talk to; the simplest one on hand is
-the embedded server the old app used:
+each boundary above. It needs a Postgres to talk to — any local Postgres 14+
+works, or run `supabase start` if you have the
+[Supabase CLI](https://supabase.com/docs/guides/cli) installed. Point the tests
+at whichever one you use:
 
 ```bash
-cd wha-portal && npm run db:start
-```
-
-then point the tests at it:
-
-```bash
-WHA_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres node supabase/tests/run.mjs
+WHA_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres node supabase/tests/run.mjs
 ```
 
 ---
