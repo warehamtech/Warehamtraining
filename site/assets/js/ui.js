@@ -42,11 +42,20 @@ export function submitButton(label, { variant = "primary", size, className } = {
 export function setPending(form, pending) {
   const submit = form.querySelector('button[type="submit"]');
   if (!submit) return;
+  // Buttons built by submitButton() above already carry their label in
+  // dataset.label. A plain <button type="submit">Sign in</button> written
+  // directly in an HTML page doesn't — so capture it here, the first time
+  // this runs, from the button's own text. Without this every such button
+  // reverted to the hardcoded "Save" fallback after its first pending cycle,
+  // regardless of what it actually said.
+  if (submit.dataset.label === undefined) {
+    submit.dataset.label = submit.textContent.trim();
+  }
   submit.disabled = pending;
   if (pending) {
-    submit.replaceChildren(el("span", { class: "btn__spinner" }), submit.dataset.label ?? "Working…");
+    submit.replaceChildren(el("span", { class: "btn__spinner" }), submit.dataset.label);
   } else {
-    submit.replaceChildren(submit.dataset.label ?? "Save");
+    submit.replaceChildren(submit.dataset.label);
   }
 }
 
