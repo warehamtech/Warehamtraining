@@ -72,6 +72,7 @@ function navFor(role) {
         { href: "/team/index.html", label: "Team" },
         { href: "/invoices.html", label: "Payments and receipts", match: ["/orders/"] },
         { href: "/certificates.html", label: "Certificates" },
+        { href: "/verify/index.html", label: "Verify" },
       ];
     default:
       return [
