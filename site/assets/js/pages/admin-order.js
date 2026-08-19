@@ -101,7 +101,7 @@ async function render(admin) {
       issued_at, due_at, paid_at, admin_note, activated_by_id,
       program:programs ( id, title, slug ),
       organization:organizations ( id, name ),
-      user:profiles ( id, name, email ),
+      user:profiles!orders_user_id_fkey ( id, name, email ),
       payment_proofs ( id, original_name, size_bytes, note, created_at, file_key ),
       enrollments ( id, user_id, user:profiles ( name, email ) )
     `)
