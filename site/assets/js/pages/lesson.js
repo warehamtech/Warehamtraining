@@ -42,6 +42,45 @@ async function videoPlayer(lesson) {
     "The video for this lesson hasn't been uploaded yet.")));
 }
 
+/** One lesson_blocks row → a rendered node. */
+async function renderBlock(block, lesson) {
+  const content = block.content ?? {};
+  switch (block.block_type) {
+    case "TEXT":
+      // Authored by WHA administrators in the admin panel, not by learners —
+      // the same trust boundary as the legacy body_html field.
+      return card(cardBody(rawHtml(content.html, "lesson-prose")));
+
+    case "IMAGE": {
+      const url = await signedUrl("lesson-media", content.file_key, 3600);
+      if (!url) {
+        return card(cardBody(el("p", { class: "subtle t-sm" },
+          "That image could not be loaded.")));
+      }
+      return el("figure", { class: "lesson-image" }, [
+        el("img", { src: url, alt: content.alt ?? "" }),
+        content.caption ? el("figcaption", {}, content.caption) : null,
+      ]);
+    }
+
+    case "VIDEO":
+      // Reuses the same player as the legacy VIDEO lesson type — a block's
+      // video content is shaped identically (embed_url XOR file_key).
+      return videoPlayer({
+        video_embed_url: content.embed_url ?? null,
+        video_file_key: content.file_key ?? null,
+        title: lesson.title,
+      });
+
+    case "EMBED":
+      // Admin-pasted third-party iframe/embed — same trust boundary as TEXT.
+      return el("div", { class: "embed-frame" }, rawHtml(content.embed_html, null));
+
+    default:
+      return null;
+  }
+}
+
 async function pdfViewer(lesson) {
   const url = await signedUrl("lesson-media", lesson.pdf_file_key, 3600);
   if (!url) {
@@ -179,7 +218,8 @@ page(async () => {
         id, title, type, body_html, video_embed_url, video_file_key,
         pdf_file_key, duration_minutes,
         course:courses ( id, title, program_id ),
-        resources ( id, title, file_key, original_name, size_bytes )
+        resources ( id, title, file_key, original_name, size_bytes ),
+        lesson_blocks ( id, block_type, position, content )
       `)
       .eq("id", lessonId)
       .maybeSingle()
@@ -201,17 +241,39 @@ page(async () => {
   setTitle(lesson.title);
 
   const courseState = progress.courses.find((c) => c.id === lesson.course.id);
+
+  // Required downloads for this course/programme haven't all been reviewed
+  // yet — send the learner to the gate first. The RLS policy on
+  // lesson_progress enforces this for real; this redirect just keeps them
+  // from landing on content they can't yet mark complete.
+  if (courseState && !courseState.downloadsAcknowledged) {
+    const here = `${location.pathname}${location.search}`;
+    location.replace(
+      `/learn/download-gate.html?e=${enrollmentId}&c=${lesson.course.id}` +
+      `&next=${encodeURIComponent(here)}`);
+    return;
+  }
+
   const lessonState = courseState?.lessons.find((l) => l.id === lesson.id);
   const next = findNext(progress, lesson.course.id, lesson.id);
 
+  const blocks = [...(lesson.lesson_blocks ?? [])].sort((a, b) => a.position - b.position);
+
   const body = [];
-  if (lesson.type === "VIDEO") body.push(await videoPlayer(lesson));
-  if (lesson.type === "PDF" && lesson.pdf_file_key) body.push(await pdfViewer(lesson));
-  if (lesson.body_html) {
-    // Authored by WHA administrators in the admin panel, not by learners —
-    // the same trust boundary the Next.js version drew.
-    body.push(card(cardBody(rawHtml(lesson.body_html, "lesson-prose"))));
+  if (blocks.length) {
+    for (const block of blocks) body.push(await renderBlock(block, lesson));
+  } else {
+    // Legacy fallback: a lesson authored before the block editor shipped
+    // (or not yet given its first block) still renders from the old
+    // type/body_html/video_* columns.
+    if (lesson.type === "VIDEO") body.push(await videoPlayer(lesson));
+    if (lesson.body_html) {
+      body.push(card(cardBody(rawHtml(lesson.body_html, "lesson-prose"))));
+    }
   }
+  // The primary document is a lesson-level property independent of the block
+  // sequence — shown whenever one is attached, not gated on lesson.type.
+  if (lesson.pdf_file_key) body.push(await pdfViewer(lesson));
 
   const resources = lesson.resources ?? [];
   if (resources.length) {

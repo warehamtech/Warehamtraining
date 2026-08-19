@@ -255,6 +255,32 @@
   background-color: var(--white);
 }
 
+/* Third-party interactive embeds (H5P, Genially, Canva, …). Unlike
+   .video-frame this doesn't force a 16:9 box or absolutely-position the
+   child, since an embed snippet isn't guaranteed to be a single full-bleed
+   iframe the way a video player is. */
+.embed-frame {
+  width: 100%;
+  min-height: 20rem;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.embed-frame iframe { width: 100%; min-height: 20rem; border: none; }
+
+.lesson-image img {
+  width: 100%;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+}
+
+.lesson-image figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--ink-subtle);
+}
+
 .resources {
   margin-top: 1.5rem;
   display: grid;
@@ -348,6 +374,72 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* Matching questions: two click-to-pair columns. */
+.quiz__match {
+  margin-top: 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1rem;
+}
+
+.quiz__match-col {
+  display: grid;
+  gap: 0.625rem;
+  align-content: start;
+}
+
+.quiz__match-item {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  text-align: left;
+  color: var(--ink);
+  transition: border-color 150ms, background-color 150ms;
+}
+
+.quiz__match-item:hover { border-color: var(--brand-300); }
+
+.quiz__match-item--selected {
+  border-color: var(--brand-500);
+  background-color: var(--brand-50);
+}
+
+.quiz__match-item--paired {
+  border-color: var(--success);
+  background-color: var(--success-soft);
+}
+
+/* Ordering questions: a reorderable list, top-to-bottom is the submitted order. */
+.quiz__order {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.quiz__order-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+}
+
+.quiz__order-num {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+  background-color: var(--surface);
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
 }
 
 /* Review-before-submit list. */

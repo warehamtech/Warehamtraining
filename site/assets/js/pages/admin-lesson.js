@@ -1,5 +1,5 @@
 import { el, mount, param, page, setTitle, formatBytes } from "../dom.js";
-import { icon } from "../icons.js";
+import { icon, blockIcon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
   button, buttonLink, card, cardBody, cardHeader, emptyState, field,
@@ -7,10 +7,23 @@ import {
 } from "../ui.js";
 import { requireRole } from "../session.js";
 import { sb, unwrap, signedUrl } from "../supabase.js";
+import { uploadLessonMedia, MAX_LESSON_MEDIA_UPLOAD } from "../storage-upload.js";
 
-/** Port of src/app/(app)/admin/programs/[id]/lessons/[lessonId]/ — page + lesson-forms. */
+/**
+ * Lesson editor: an ordered sequence of content blocks (text/image/video/
+ * interactive embed) plus the lesson-level settings, primary document and
+ * downloadable attachments that sit alongside them.
+ *
+ * Port of src/app/(app)/admin/programs/[id]/lessons/[lessonId]/ — page +
+ * lesson-forms — extended for the block model added in 0006_lesson_blocks.sql.
+ */
 
-const MAX_UPLOAD = 500 * 1024 * 1024; // matches the lesson-media bucket limit
+const BLOCK_LABEL = {
+  TEXT: "Text",
+  IMAGE: "Image",
+  VIDEO: "Video",
+  EMBED: "Interactive embed",
+};
 
 async function render(admin) {
   const programId = param("id");
@@ -23,10 +36,10 @@ async function render(admin) {
 
   const lesson = await sb.from("lessons")
     .select(`
-      id, title, type, position, body_html, video_embed_url, video_file_key,
-      pdf_file_key, duration_minutes,
+      id, title, position, pdf_file_key, duration_minutes,
       course:courses ( id, title, program_id ),
-      resources ( id, title, file_key, original_name, content_type, size_bytes )
+      resources ( id, title, file_key, original_name, content_type, size_bytes ),
+      lesson_blocks ( id, block_type, position, content )
     `)
     .eq("id", lessonId)
     .maybeSingle()
@@ -43,44 +56,28 @@ async function render(admin) {
 
   setTitle(`${lesson.title} — admin`);
 
-  /* --- Upload helper ------------------------------------------------------ */
+  const blocks = [...(lesson.lesson_blocks ?? [])].sort((a, b) => a.position - b.position);
 
-  // Media is keyed by programme id, because that is what the lesson-media
-  // bucket policy checks when deciding who may read it back.
-  async function upload(file, prefix) {
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
-    const key = `${lesson.course.program_id}/${prefix}/${crypto.randomUUID()}-${safeName}`;
-    const { error } = await sb.storage.from("lesson-media").upload(key, file, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
-    });
-    return error ? null : key;
+  // Signed previews for existing images, fetched up front so block cards can
+  // render synchronously.
+  const imagePreviews = new Map();
+  for (const block of blocks) {
+    if (block.block_type === "IMAGE" && block.content?.file_key) {
+      imagePreviews.set(block.id,
+        await signedUrl("lesson-media", block.content.file_key, 3600));
+    }
   }
 
-  /* --- Core settings ------------------------------------------------------ */
+  const upload = (file, prefix) => uploadLessonMedia(file, lesson.course.program_id, prefix);
+
+  /* --- Lesson settings ------------------------------------------------------ */
 
   const settings = el("form", { class: "stack", novalidate: true }, [
     el("div", { "data-message": "" }),
     field({ label: "Title", name: "title", required: true, value: lesson.title }),
-    el("div", { class: "grid grid--halves" }, [
-      field({
-        label: "Type", name: "type", as: "select",
-        options: [
-          { value: "TEXT", label: "Written", selected: lesson.type === "TEXT" },
-          { value: "VIDEO", label: "Video", selected: lesson.type === "VIDEO" },
-          { value: "PDF", label: "PDF", selected: lesson.type === "PDF" },
-        ],
-      }),
-      field({
-        label: "Duration (minutes)", name: "durationMinutes", type: "number", min: 0,
-        value: lesson.duration_minutes ?? 0,
-        hint: "Shown to learners as an estimate.",
-      }),
-    ]),
     field({
-      label: "Written content (HTML)", name: "bodyHtml", as: "textarea", rows: 12,
-      value: lesson.body_html ?? "",
-      hint: "Rendered as-is into the lesson page. Headings, paragraphs, lists, tables and images are styled for you.",
+      label: "Duration (minutes)", name: "durationMinutes", type: "number", min: 0,
+      value: lesson.duration_minutes ?? 0, hint: "Shown to learners as an estimate.",
     }),
     el("button", { class: "btn btn--primary", type: "submit" }, "Save lesson"),
   ]);
@@ -90,9 +87,7 @@ async function render(admin) {
     setPending(settings, true);
     const { error } = await sb.from("lessons").update({
       title: settings.elements.title.value.trim(),
-      type: settings.elements.type.value,
       duration_minutes: Number(settings.elements.durationMinutes.value) || 0,
-      body_html: settings.elements.bodyHtml.value.trim() || null,
     }).eq("id", lesson.id);
     setPending(settings, false);
 
@@ -101,61 +96,225 @@ async function render(admin) {
     setTimeout(() => render(admin), 800);
   });
 
-  /* --- Video source ------------------------------------------------------- */
+  /* --- Content blocks --------------------------------------------------------
+   *
+   * Reordering is the same adjacent-position-swap pattern used for courses
+   * and lessons in admin-program.js — no drag-and-drop dependency.
+   */
 
-  const videoForm = el("form", { class: "stack", novalidate: true }, [
-    el("div", { "data-message": "" }),
-    field({
-      label: "Embed URL", name: "videoEmbedUrl", type: "url",
-      value: lesson.video_embed_url ?? "",
-      placeholder: "https://player.vimeo.com/video/…",
-      hint: "A CleverClips, Vimeo or YouTube embed URL. Leave blank if you upload a file instead.",
-    }),
-    el("div", { class: "field" }, [
-      el("label", { class: "field__label" }, "…or upload a video file"),
-      el("input", { class: "control", type: "file", name: "file", accept: "video/*" }),
-      el("p", { class: "field__hint" },
-        lesson.video_file_key
-          ? "A file is already attached. Uploading a new one replaces it."
-          : "Stored privately — only learners holding a seat can play it."),
-    ]),
-    el("button", { class: "btn btn--secondary", type: "submit" }, "Save video source"),
-  ]);
+  const moveBlock = async (block, direction) => {
+    const index = blocks.findIndex((b) => b.id === block.id);
+    const swapWith = blocks[index + direction];
+    if (!swapWith) return;
+    await Promise.all([
+      sb.from("lesson_blocks").update({ position: swapWith.position }).eq("id", block.id),
+      sb.from("lesson_blocks").update({ position: block.position }).eq("id", swapWith.id),
+    ]);
+    render(admin);
+  };
 
-  videoForm.addEventListener("submit", async (event) => {
+  const addBlock = async (blockType) => {
+    await sb.from("lesson_blocks").insert({
+      lesson_id: lesson.id,
+      block_type: blockType,
+      position: blocks.length + 1,
+      content: {},
+    });
+    render(admin);
+  };
+
+  function blockFields(block, content) {
+    switch (block.block_type) {
+      case "TEXT":
+        return [field({
+          label: "HTML content", name: "html", as: "textarea", rows: 8,
+          value: content.html ?? "",
+          hint: "Rendered as-is. Headings, paragraphs, lists, tables and images are styled for you.",
+        })];
+
+      case "IMAGE":
+        return [
+          imagePreviews.get(block.id)
+            ? el("img", {
+                src: imagePreviews.get(block.id),
+                alt: "",
+                style: { maxWidth: "12rem", borderRadius: "var(--radius-card)", border: "1px solid var(--line)" },
+              })
+            : null,
+          el("div", { class: "field" }, [
+            el("label", { class: "field__label" },
+              content.file_key ? "Replace image" : "Image"),
+            el("input", { class: "control", type: "file", name: "file", accept: "image/*" }),
+          ]),
+          field({ label: "Alt text", name: "alt", value: content.alt ?? "",
+            hint: "Describes the image for screen readers." }),
+          field({ label: "Caption", name: "caption", value: content.caption ?? "" }),
+        ];
+
+      case "VIDEO":
+        return [
+          field({
+            label: "Embed URL", name: "embedUrl", type: "url", value: content.embed_url ?? "",
+            placeholder: "https://player.vimeo.com/video/…",
+            hint: "A CleverClips, Vimeo or YouTube embed URL. Leave blank if you upload a file instead.",
+          }),
+          el("div", { class: "field" }, [
+            el("label", { class: "field__label" }, "…or upload a video file"),
+            el("input", { class: "control", type: "file", name: "file", accept: "video/*" }),
+            el("p", { class: "field__hint" },
+              content.file_key
+                ? "A file is already attached. Uploading a new one replaces it."
+                : "Stored privately — only learners holding a seat can play it."),
+          ]),
+        ];
+
+      case "EMBED":
+        return [
+          field({
+            label: "Embed code", name: "embedHtml", as: "textarea", rows: 6,
+            value: content.embed_html ?? "",
+            hint: "Paste the iframe/embed snippet from H5P, Genially, YouTube, Canva, etc.",
+          }),
+          field({
+            label: "Provider (optional)", name: "provider", value: content.provider ?? "",
+            hint: "Display label only, e.g. \"H5P\".",
+          }),
+        ];
+
+      default:
+        return [];
+    }
+  }
+
+  async function saveBlock(event, block, form) {
     event.preventDefault();
-    setFormMessage(videoForm, null);
-    setPending(videoForm, true);
+    setFormMessage(form, null);
+    setPending(form, true);
 
-    const file = videoForm.elements.file.files?.[0];
-    const embed = videoForm.elements.videoEmbedUrl.value.trim();
+    const content = block.content ?? {};
+    let next;
 
-    let fileKey = lesson.video_file_key;
-    if (file) {
-      if (file.size > MAX_UPLOAD) {
-        setPending(videoForm, false);
-        return setFormMessage(videoForm, "That file is larger than 500 MB.");
+    if (block.block_type === "TEXT") {
+      next = { html: form.elements.html.value.trim() };
+    } else if (block.block_type === "IMAGE") {
+      const file = form.elements.file.files?.[0];
+      let fileKey = content.file_key ?? null;
+      if (file) {
+        if (file.size > MAX_LESSON_MEDIA_UPLOAD) {
+          setPending(form, false);
+          return setFormMessage(form, "That file is larger than 500 MB.");
+        }
+        fileKey = await upload(file, "image");
+        if (!fileKey) {
+          setPending(form, false);
+          return setFormMessage(form, "That upload was refused.");
+        }
       }
-      fileKey = await upload(file, "video");
       if (!fileKey) {
-        setPending(videoForm, false);
-        return setFormMessage(videoForm, "That upload was refused.");
+        setPending(form, false);
+        return setFormMessage(form, "Choose an image.");
       }
+      next = {
+        file_key: fileKey,
+        alt: form.elements.alt.value.trim(),
+        caption: form.elements.caption.value.trim(),
+      };
+    } else if (block.block_type === "VIDEO") {
+      const file = form.elements.file.files?.[0];
+      const embed = form.elements.embedUrl.value.trim();
+      if (file) {
+        if (file.size > MAX_LESSON_MEDIA_UPLOAD) {
+          setPending(form, false);
+          return setFormMessage(form, "That file is larger than 500 MB.");
+        }
+        const fileKey = await upload(file, "video");
+        if (!fileKey) {
+          setPending(form, false);
+          return setFormMessage(form, "That upload was refused.");
+        }
+        next = { file_key: fileKey };
+      } else if (embed) {
+        next = { embed_url: embed };
+      } else if (content.file_key) {
+        next = { file_key: content.file_key };
+      } else {
+        setPending(form, false);
+        return setFormMessage(form, "Add an embed URL or upload a file.");
+      }
+    } else if (block.block_type === "EMBED") {
+      const html = form.elements.embedHtml.value.trim();
+      if (!html) {
+        setPending(form, false);
+        return setFormMessage(form, "Paste an embed snippet.");
+      }
+      next = { embed_html: html, provider: form.elements.provider.value.trim() || null };
     }
 
-    // A lesson carries either an embed or a hosted file, not both — whichever
-    // was set most recently wins.
-    const { error } = await sb.from("lessons").update({
-      video_embed_url: file ? null : (embed || null),
-      video_file_key: file ? fileKey : (embed ? null : fileKey),
-    }).eq("id", lesson.id);
+    const { error } = await sb.from("lesson_blocks").update({ content: next }).eq("id", block.id);
+    setPending(form, false);
 
-    setPending(videoForm, false);
-    if (error) return setFormMessage(videoForm, error.message);
-    render(admin);
-  });
+    if (error) return setFormMessage(form, error.message);
+    setFormMessage(form, "Saved.", "success");
+    setTimeout(() => render(admin), 800);
+  }
 
-  /* --- PDF ---------------------------------------------------------------- */
+  function blockCard(block, index) {
+    const content = block.content ?? {};
+    const form = el("form", { class: "stack", novalidate: true }, [
+      el("div", { "data-message": "" }),
+      ...blockFields(block, content),
+      el("button", { class: "btn btn--secondary btn--sm", type: "submit" }, "Save block"),
+    ]);
+
+    form.addEventListener("submit", (event) => saveBlock(event, block, form));
+
+    return el("li", {}, card([
+      el("div", { class: "card__header" }, [
+        el("div", { class: "row" }, [
+          icon(blockIcon[block.block_type], 16, { class: "i-subtle" }),
+          el("span", { class: "medium t-sm" }, BLOCK_LABEL[block.block_type]),
+        ]),
+        el("div", { class: "row" }, [
+          button(icon("chevronDown", 14), {
+            variant: "ghost", size: "sm", "aria-label": "Move block down",
+            disabled: index === blocks.length - 1,
+            onClick: () => moveBlock(block, 1),
+          }),
+          button(icon("trash", 14), {
+            variant: "ghost", size: "sm", "aria-label": "Delete block",
+            onClick: async () => {
+              if (!confirm("Delete this block? This cannot be undone.")) return;
+              await sb.from("lesson_blocks").delete().eq("id", block.id);
+              render(admin);
+            },
+          }),
+        ]),
+      ]),
+      cardBody(form),
+    ]));
+  }
+
+  const addBlockRow = el("div", { class: "row row--wrap mt-3" }, [
+    button([icon("fileText", 14), "Text"], {
+      variant: "secondary", size: "sm", onClick: () => addBlock("TEXT"),
+    }),
+    button([icon("image", 14), "Image"], {
+      variant: "secondary", size: "sm", onClick: () => addBlock("IMAGE"),
+    }),
+    button([icon("monitorPlay", 14), "Video"], {
+      variant: "secondary", size: "sm", onClick: () => addBlock("VIDEO"),
+    }),
+    button([icon("code", 14), "Interactive embed"], {
+      variant: "secondary", size: "sm", onClick: () => addBlock("EMBED"),
+    }),
+  ]);
+
+  /* --- Document (PDF) --------------------------------------------------------
+   *
+   * Independent of the block sequence — the lesson's optional primary
+   * document, unconditional rather than gated on a lesson "type" the way it
+   * was before blocks existed.
+   */
 
   const pdfForm = el("form", { class: "stack", novalidate: true }, [
     el("div", { "data-message": "" }),
@@ -184,7 +343,7 @@ async function render(admin) {
     render(admin);
   });
 
-  /* --- Attachments -------------------------------------------------------- */
+  /* --- Attachments ------------------------------------------------------- */
 
   const resourceForm = el("form", { class: "stack", novalidate: true }, [
     el("div", { "data-message": "" }),
@@ -222,7 +381,7 @@ async function render(admin) {
     render(admin);
   });
 
-  /* --- Page --------------------------------------------------------------- */
+  /* --- Page ----------------------------------------------------------------- */
 
   mount("#app",
     el("div", { class: "page-head" }, [
@@ -242,22 +401,24 @@ async function render(admin) {
     ]),
 
     el("div", { class: "grid grid--detail mt-4" }, [
-      card([cardHeader("Lesson content"), cardBody(settings)]),
+      card([
+        cardHeader("Content blocks", {
+          description: "The lesson's slides, in the order learners see them.",
+        }),
+        cardBody([
+          blocks.length
+            ? el("ul", { class: "stack" }, blocks.map((block, i) => blockCard(block, i)))
+            : el("p", { class: "subtle t-sm" }, "No blocks yet — add one below."),
+          addBlockRow,
+        ]),
+      ]),
 
       el("aside", { class: "stack--lg" }, [
-        lesson.type === "VIDEO"
-          ? card([
-              cardHeader("Video source", {
-                description: "An embed URL or a file we host — not both.",
-              }),
-              cardBody(videoForm),
-            ])
-          : null,
-
-        lesson.type === "PDF"
-          ? card([cardHeader("Document"), cardBody(pdfForm)])
-          : null,
-
+        card([cardHeader("Lesson settings"), cardBody(settings)]),
+        card([
+          cardHeader("Document", { description: "Optional — a PDF learners can read inline." }),
+          cardBody(pdfForm),
+        ]),
         card([
           cardHeader("Attachments", {
             description: "Downloadable extras shown under the lesson.",

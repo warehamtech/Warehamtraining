@@ -17,8 +17,27 @@ function tick(done, { quiz = false } = {}) {
     done ? icon("check", 10, { strokeWidth: 3.5 }) : null);
 }
 
-function lessonRow(enrollmentId, lesson, activeId) {
+function lessonRow(enrollmentId, lesson, activeId, { downloadsAcknowledged = true } = {}) {
   const href = `/learn/lesson.html?e=${enrollmentId}&l=${lesson.id}`;
+
+  // Required downloads for this course haven't been reviewed yet — still a
+  // link (the lesson itself is readable; only ticking it complete is
+  // actually blocked, at the RLS layer), but flagged so it's not mistaken
+  // for a normal unlocked lesson.
+  if (!downloadsAcknowledged) {
+    return el("li", {},
+      el("a", {
+        href,
+        class: "curriculum__item curriculum__item--locked",
+        "aria-current": lesson.id === activeId ? "page" : null,
+        title: "Review the required downloads for this course first",
+      }, [
+        tick(false),
+        el("span", { class: "text" }, lesson.title),
+        icon("lock", 14, { class: "type-icon" }),
+      ]));
+  }
+
   return el("li", {},
     el("a", {
       href,
@@ -92,7 +111,8 @@ export function curriculumSidebar(progress, { activeId } = {}) {
         ]),
         el("ul", { class: "curriculum__lessons" }, [
           ...course.lessons.map((lesson) =>
-            lessonRow(progress.enrollmentId, lesson, activeId)),
+            lessonRow(progress.enrollmentId, lesson, activeId,
+              { downloadsAcknowledged: course.downloadsAcknowledged })),
           course.quiz ? quizRow(progress.enrollmentId, course.quiz, activeId) : null,
         ]),
       ]))),

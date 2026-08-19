@@ -43,7 +43,7 @@ export async function getProgressForEnrollments(enrollmentIds) {
   const result = new Map();
   if (!enrollmentIds?.length) return result;
 
-  const [enrollments, progressRows, attempts] = await Promise.all([
+  const [enrollments, progressRows, attempts, acknowledgements] = await Promise.all([
     sb.from("enrollments")
       .select(`
         id,
@@ -53,7 +53,8 @@ export async function getProgressForEnrollments(enrollmentIds) {
             id, title, summary, position,
             lessons ( id, title, position, type, duration_minutes ),
             quizzes ( id, title, pass_mark_percent, max_attempts )
-          )
+          ),
+          program_downloads ( id, course_id, required )
         )
       `)
       .in("id", enrollmentIds)
@@ -66,7 +67,21 @@ export async function getProgressForEnrollments(enrollmentIds) {
       .select("enrollment_id, quiz_id, passed, score_percent")
       .in("enrollment_id", enrollmentIds)
       .then(unwrap),
+    sb.from("download_acknowledgements")
+      .select("enrollment_id, download_id")
+      .in("enrollment_id", enrollmentIds)
+      .then(unwrap),
   ]);
+
+  const ackedByEnrollment = new Map();
+  for (const row of acknowledgements) {
+    let set = ackedByEnrollment.get(row.enrollment_id);
+    if (!set) {
+      set = new Set();
+      ackedByEnrollment.set(row.enrollment_id, set);
+    }
+    set.add(row.download_id);
+  }
 
   const completedByEnrollment = new Map();
   for (const row of progressRows) {
@@ -93,6 +108,18 @@ export async function getProgressForEnrollments(enrollmentIds) {
 
   for (const enrollment of enrollments) {
     const done = completedByEnrollment.get(enrollment.id) ?? new Set();
+    const acked = ackedByEnrollment.get(enrollment.id) ?? new Set();
+    const requiredDownloads = (enrollment.program.program_downloads ?? [])
+      .filter((d) => d.required);
+
+    // Mirrors course_downloads_acknowledged() for display purposes only —
+    // the lesson_progress RLS policy and submit_quiz_attempt() are what
+    // actually enforce this; this just decides where a link points.
+    const downloadsAcknowledged = (courseId) =>
+      requiredDownloads
+        .filter((d) => d.course_id === null || d.course_id === courseId)
+        .every((d) => acked.has(d.id));
+
     const courses = [];
 
     let totalLessons = 0;
@@ -155,6 +182,9 @@ export async function getProgressForEnrollments(enrollmentIds) {
         lessonsComplete,
         complete,
         percent: percentOf(courseDoneSteps, courseSteps),
+        // Combines programme-level and this course's required downloads —
+        // matches the OR condition in course_downloads_acknowledged().
+        downloadsAcknowledged: downloadsAcknowledged(course.id),
       });
 
       totalLessons += lessons.length;
@@ -194,6 +224,9 @@ export async function getProgressForEnrollments(enrollmentIds) {
       programId: enrollment.program.id,
       programTitle: enrollment.program.title,
       programSlug: enrollment.program.slug,
+      // Programme-level required downloads only (course_id is null) — a
+      // course's own combined flag lives on that course, see above.
+      programDownloadsAcknowledged: downloadsAcknowledged(null),
       courses,
       totalLessons,
       completedLessons,
@@ -225,11 +258,19 @@ export function isCertificateEligible(progress) {
 /** Where "Continue" should take this learner. */
 export function nextStepHref(progress) {
   const step = progress.nextStep;
-  if (step.kind === "lesson") {
-    return `/learn/lesson.html?e=${progress.enrollmentId}&l=${step.lessonId}`;
+
+  if (step.kind === "lesson" || step.kind === "quiz") {
+    const target = step.kind === "lesson"
+      ? `/learn/lesson.html?e=${progress.enrollmentId}&l=${step.lessonId}`
+      : `/learn/quiz.html?e=${progress.enrollmentId}&q=${step.quizId}`;
+
+    const course = progress.courses.find((c) => c.id === step.courseId);
+    if (course && !course.downloadsAcknowledged) {
+      return `/learn/download-gate.html?e=${progress.enrollmentId}` +
+        `&c=${step.courseId}&next=${encodeURIComponent(target)}`;
+    }
+    return target;
   }
-  if (step.kind === "quiz") {
-    return `/learn/quiz.html?e=${progress.enrollmentId}&q=${step.quizId}`;
-  }
+
   return `/learn/index.html?e=${progress.enrollmentId}`;
 }

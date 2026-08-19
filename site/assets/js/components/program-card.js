@@ -3,10 +3,17 @@ import { icon } from "../icons.js";
 import { badge } from "../ui.js";
 import { formatMoney } from "../money.js";
 
-/** Port of src/components/catalog/program-card.tsx. */
-export function programCard(program) {
+/**
+ * Port of src/components/catalog/program-card.tsx.
+ *
+ * `{ admin: true }` renders the same card linked into the curriculum builder
+ * instead of the public sales page, for the admin catalogue grid.
+ */
+export function programCard(program, { admin = false } = {}) {
   return el("a", {
-    href: `/programs/program.html?slug=${encodeURIComponent(program.slug)}`,
+    href: admin
+      ? `/admin/program.html?id=${program.id}`
+      : `/programs/program.html?slug=${encodeURIComponent(program.slug)}`,
     class: "program-card",
   }, [
     program.standard ? badge(program.standard, "brand") : null,
@@ -36,7 +43,16 @@ export function programCard(program) {
         el("span", { class: "program-card__price tabular" }, formatMoney(program.priceCents)),
         el("span", {}, "per learner, excl. VAT"),
       ]),
-      el("span", { class: "program-card__cta" }, ["View", icon("arrowRight", 16)]),
+      el("span", { class: "program-card__cta" },
+        [admin ? "Edit" : "View", icon("arrowRight", 16)]),
     ]),
+  ]);
+}
+
+/** The admin catalogue's "Add Course" tile — same box as a programme card. */
+export function programCardCta(href) {
+  return el("a", { href, class: "program-card program-card--cta" }, [
+    el("span", { class: "program-card--cta__icon" }, icon("plus", 20)),
+    el("span", { class: "program-card--cta__label" }, "Add Course"),
   ]);
 }

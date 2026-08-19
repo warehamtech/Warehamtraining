@@ -126,7 +126,11 @@ export function field({
       (options ?? []).map((option) =>
         el("option", { value: option.value, selected: option.selected }, option.label)));
   } else if (as === "textarea") {
-    control = el("textarea", { id, name, class: "control", required, ...attrs });
+    // Unlike <input>, a <textarea>'s initial content is its text content, not
+    // a `value` attribute — setAttribute("value", …) is silently ignored by
+    // the browser, so an initial value has to go in as a child text node.
+    const { value: initialValue, ...rest } = attrs;
+    control = el("textarea", { id, name, class: "control", required, ...rest }, initialValue ?? "");
   } else {
     control = el("input", { id, name, class: "control", required, ...attrs });
   }

@@ -50,6 +50,9 @@ const files = [
   join(migrations, "0002_rls.sql"),
   join(migrations, "0003_functions.sql"),
   join(migrations, "0004_storage.sql"),
+  join(migrations, "0006_lesson_blocks.sql"),
+  join(migrations, "0007_downloads.sql"),
+  join(migrations, "0008_quiz_engine_v2.sql"),
 ];
 
 for (const file of files) {

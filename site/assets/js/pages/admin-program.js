@@ -1,5 +1,5 @@
-import { el, mount, param, page, setTitle, formatMinutes } from "../dom.js";
-import { icon, lessonIcon } from "../icons.js";
+import { el, mount, param, page, setTitle, formatMinutes, formatBytes } from "../dom.js";
+import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
   badge, button, buttonLink, card, cardBody, cardHeader, emptyState, field,
@@ -8,6 +8,7 @@ import {
 import { requireRole } from "../session.js";
 import { sb, unwrap } from "../supabase.js";
 import { formatMoney } from "../money.js";
+import { uploadLessonMedia } from "../storage-upload.js";
 
 /**
  * Programme editor: settings, publish toggle, and the course/lesson tree.
@@ -27,8 +28,12 @@ async function render(admin) {
       duration_hours, published,
       courses (
         id, title, summary, position,
-        lessons ( id, title, position, type, duration_minutes ),
+        lessons ( id, title, position, duration_minutes, lesson_blocks ( id ) ),
         quizzes ( id, title, pass_mark_percent, questions ( id ) )
+      ),
+      program_downloads (
+        id, course_id, title, file_key, original_name, content_type,
+        size_bytes, required, position
       )
     `)
     .eq("id", programId)
@@ -56,6 +61,10 @@ async function render(admin) {
 
   const lessonCount = courses.reduce((total, c) => total + c.lessons.length, 0);
   const canPublish = courses.length > 0 && lessonCount > 0;
+
+  const allDownloads = [...(program.program_downloads ?? [])].sort((a, b) => a.position - b.position);
+  const programDownloads = allDownloads.filter((d) => d.course_id === null);
+  const courseDownloads = (courseId) => allDownloads.filter((d) => d.course_id === courseId);
 
   /* --- Settings ----------------------------------------------------------- */
 
@@ -111,6 +120,79 @@ async function render(admin) {
     setTimeout(() => render(admin), 800);
   });
 
+  /* --- Downloads -----------------------------------------------------------
+   *
+   * course_id === null → delivered before the whole programme; set → before
+   * that specific course. Both scopes share the same row shape and controls.
+   */
+
+  const downloadRow = (download) =>
+    el("li", { class: "row" }, [
+      icon("download", 16, { class: "i-subtle" }),
+      el("div", { class: "grow" }, [
+        el("p", { class: "medium t-sm truncate" }, [
+          download.title,
+          !download.required ? el("span", { class: "subtle t-xs" }, "  ·  optional") : null,
+        ]),
+        el("p", { class: "subtle t-xs tabular" },
+          `${download.original_name} · ${formatBytes(download.size_bytes)}`),
+      ]),
+      button(icon("trash", 14), {
+        variant: "ghost", size: "sm", "aria-label": "Remove download",
+        onClick: async () => {
+          await sb.storage.from("lesson-media").remove([download.file_key]);
+          await sb.from("program_downloads").delete().eq("id", download.id);
+          render(admin);
+        },
+      }),
+    ]);
+
+  const downloadForm = (courseId, existing) => {
+    const form = el("form", { class: "stack stack--sm", novalidate: true }, [
+      el("div", { "data-message": "" }),
+      el("div", { class: "row row--wrap" }, [
+        el("input", { class: "control grow", name: "title", required: true,
+          placeholder: courseId ? "Pre-course reading" : "Programme handbook" }),
+        el("input", { class: "control", type: "file", name: "file", required: true }),
+      ]),
+      el("label", { class: "row t-sm" }, [
+        el("input", { type: "checkbox", name: "required", checked: true }),
+        "Required before continuing",
+      ]),
+      el("button", { class: "btn btn--secondary btn--sm", type: "submit" },
+        [icon("plus", 16), "Add download"]),
+    ]);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = form.elements.file.files?.[0];
+      const title = form.elements.title.value.trim();
+      if (!file || !title) return setFormMessage(form, "Give it a title and choose a file.");
+
+      setPending(form, true);
+      const key = await uploadLessonMedia(file, program.id, "downloads");
+      if (!key) {
+        setPending(form, false);
+        return setFormMessage(form, "That upload was refused.");
+      }
+      await sb.from("program_downloads").insert({
+        program_id: program.id,
+        course_id: courseId,
+        title,
+        file_key: key,
+        original_name: file.name,
+        content_type: file.type || "application/octet-stream",
+        size_bytes: file.size,
+        required: form.elements.required.checked,
+        position: existing.length + 1,
+      });
+      setPending(form, false);
+      render(admin);
+    });
+
+    return form;
+  };
+
   /* --- Add course --------------------------------------------------------- */
 
   const courseForm = el("form", { class: "row row--wrap", novalidate: true }, [
@@ -150,11 +232,6 @@ async function render(admin) {
     const addLesson = el("form", { class: "row row--wrap mt-3", novalidate: true }, [
       el("input", { class: "control grow", name: "title", required: true,
         placeholder: "New lesson title" }),
-      el("select", { class: "control", name: "type", style: { width: "auto" } }, [
-        el("option", { value: "TEXT" }, "Written"),
-        el("option", { value: "VIDEO" }, "Video"),
-        el("option", { value: "PDF" }, "PDF"),
-      ]),
       el("button", { class: "btn btn--secondary btn--sm", type: "submit" }, "Add"),
     ]);
 
@@ -162,10 +239,11 @@ async function render(admin) {
       event.preventDefault();
       const title = addLesson.elements.title.value.trim();
       if (!title) return;
+      // Created bare — the admin adds its first content block on the next
+      // screen, in the lesson's own editor.
       const { data } = await sb.from("lessons").insert({
         course_id: course.id,
         title,
-        type: addLesson.elements.type.value,
         position: course.lessons.length + 1,
       }).select("id").maybeSingle();
       if (data) location.href = `/admin/lesson.html?id=${program.id}&lessonId=${data.id}`;
@@ -210,11 +288,15 @@ async function render(admin) {
           course.lessons.length
             ? el("ul", { class: "admin-lessons" }, course.lessons.map((lesson, i) =>
                 el("li", { class: "row" }, [
-                  icon(lessonIcon[lesson.type], 16, { class: "i-subtle" }),
+                  icon("layers", 16, { class: "i-subtle" }),
                   el("a", {
                     class: "link grow truncate",
                     href: `/admin/lesson.html?id=${program.id}&lessonId=${lesson.id}`,
                   }, lesson.title),
+                  el("span", { class: "subtle t-xs tabular" }, [
+                    String((lesson.lesson_blocks ?? []).length),
+                    (lesson.lesson_blocks ?? []).length === 1 ? " block" : " blocks",
+                  ]),
                   lesson.duration_minutes > 0
                     ? el("span", { class: "subtle t-xs tabular" },
                         formatMinutes(lesson.duration_minutes))
@@ -227,6 +309,13 @@ async function render(admin) {
                 ])))
             : el("p", { class: "subtle t-sm" }, "No lessons yet."),
           addLesson,
+          el("div", { class: "stack--sm mt-4" }, [
+            el("p", { class: "section-label t-xs" }, "Course downloads"),
+            courseDownloads(course.id).length
+              ? el("ul", { class: "divided" }, courseDownloads(course.id).map(downloadRow))
+              : el("p", { class: "subtle t-xs" }, "None yet."),
+            downloadForm(course.id, courseDownloads(course.id)),
+          ]),
         ]),
       ]));
   };
@@ -284,8 +373,18 @@ async function render(admin) {
         card(cardBody(courseForm), { className: "mt-4" }),
       ]),
 
-      el("aside", { class: "sticky-panel" },
-        card([cardHeader("Programme settings"), cardBody(settings)])),
+      el("aside", { class: "sticky-panel stack--lg" }, [
+        card([cardHeader("Programme settings"), cardBody(settings)]),
+        card([
+          cardHeader("Programme downloads", {
+            description: "Delivered before the whole programme.",
+          }),
+          programDownloads.length
+            ? el("ul", { class: "divided" }, programDownloads.map(downloadRow))
+            : null,
+          cardBody(downloadForm(null, programDownloads)),
+        ]),
+      ]),
     ]));
 }
 

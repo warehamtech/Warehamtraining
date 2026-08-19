@@ -439,6 +439,44 @@ main {
 
 .program-card__cta svg { transition: transform 200ms; }
 
+/* Admin catalogue: "Add Course" tile, same box as a programme card. */
+.program-card--cta {
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 100%;
+  border-style: dashed;
+  border-color: var(--line);
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.program-card--cta:hover {
+  border-color: var(--brand-400);
+  color: var(--brand-700);
+  box-shadow: none;
+}
+
+.program-card--cta__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: inherit;
+}
+
+.program-card--cta:hover .program-card--cta__icon { border-color: var(--brand-400); }
+
+.program-card--cta__label {
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
 /* --- Steps / feature lists ------------------------------------------------ */
 
 .steps {
