@@ -40,16 +40,27 @@ export function logoLink({ href = "/", variant = "colour", width = 150 } = {}) {
 
 /* --- Navigation ----------------------------------------------------------- */
 
+/**
+ * Where "back to my own area" goes, and what to call it. WHA staff administer
+ * the portal rather than learn on it, so for them this is the admin dashboard,
+ * not "My learning".
+ */
+export function homeLabel(role) {
+  return role === "WHA_ADMIN" ? "Admin dashboard" : "My learning";
+}
+
 function navFor(role) {
   switch (role) {
     case "WHA_ADMIN":
+      // No "Catalogue" here: for staff the public site is a separate place to
+      // visit, not a section of the admin area, so it gets the View site
+      // button in the bar instead.
       return [
         { href: "/admin/orders.html", label: "Orders" },
         { href: "/admin/invoices.html", label: "Invoices" },
         { href: "/admin/programs.html", label: "Programmes" },
         { href: "/admin/learners.html", label: "Learners" },
         { href: "/admin/stats.html", label: "Statistics" },
-        { href: "/programs/index.html", label: "Catalogue" },
       ];
     case "ORG_ADMIN":
       return [
@@ -82,6 +93,8 @@ function navLink({ href, label }) {
 /* --- User menu ------------------------------------------------------------ */
 
 function userMenu(user) {
+  const isStaff = user.role === "WHA_ADMIN";
+
   const panel = el("div", {
     class: "user-menu__panel",
     hidden: true,
@@ -90,15 +103,22 @@ function userMenu(user) {
     el("div", { class: "user-menu__identity" }, [
       el("strong", {}, user.name),
       el("span", {}, user.email),
-      el("span", {}, [
+      el("span", { class: isStaff ? "user-menu__role" : null }, [
         roleLabels[user.role],
         user.organizationName ? ` · ${user.organizationName}` : null,
       ]),
     ]),
-    el("a", { class: "user-menu__item", href: homeFor(user.role), role: "menuitem" },
-      "My learning"),
-    el("a", { class: "user-menu__item", href: "/certificates.html", role: "menuitem" },
-      "My certificates"),
+
+    // WHA staff hold no seats and earn no certificates — both of these are
+    // learner concepts, and "My learning" pointed straight back at the admin
+    // dashboard for them, which read as a dead link.
+    ...(isStaff ? [] : [
+      el("a", { class: "user-menu__item", href: homeFor(user.role), role: "menuitem" },
+        "My learning"),
+      el("a", { class: "user-menu__item", href: "/certificates.html", role: "menuitem" },
+        "My certificates"),
+    ]),
+
     el("button", {
       class: "user-menu__item",
       type: "button",
@@ -161,7 +181,7 @@ export async function renderPublicHeader(target = "#site-header") {
         el("a", { href: "/programs/index.html", class: "nav-link" }, "Catalogue"),
         el("a", { href: "/verify/index.html", class: "nav-link" }, "Verify"),
         ...(user
-          ? [buttonLink("My learning", homeFor(user.role), { size: "sm" })]
+          ? [buttonLink(homeLabel(user.role), homeFor(user.role), { size: "sm" })]
           : [
               el("a", { href: "/login.html", class: "nav-link" }, "Sign in"),
               buttonLink("Create account", "/register.html", { size: "sm" }),
@@ -181,16 +201,32 @@ export async function renderAppHeader(user, target = "#site-header") {
 
   track();
   const items = navFor(user.role);
-  host.className = "site-header";
+  const isStaff = user.role === "WHA_ADMIN";
+
+  // On a phone the bar has no room for the pill or the button, so View site
+  // rides along in the stacked nav row instead.
+  const stackedItems = isStaff
+    ? [...items, { href: "/index.html", label: "View site" }]
+    : items;
+
+  host.className = isStaff ? "site-header site-header--admin" : "site-header";
   host.replaceChildren(
     el("div", { class: "shell site-header__bar" }, [
       logoLink({ href: homeFor(user.role), width: 132 }),
+      isStaff
+        ? el("span", { class: "role-pill", title: roleLabels[user.role] },
+            [icon("shieldCheck", 13), "Admin"])
+        : null,
       el("nav", { class: "app-nav--inline scroll-x", "aria-label": "Main" },
         items.map(navLink)),
+      isStaff
+        ? buttonLink([icon("externalLink", 14), "View site"], "/index.html",
+            { variant: "secondary", size: "sm", className: "view-site" })
+        : null,
       userMenu(user),
     ]),
     el("nav", { class: "app-nav--stacked scroll-x", "aria-label": "Main" },
-      items.map(navLink)),
+      stackedItems.map(navLink)),
   );
 }
 
