@@ -15,12 +15,26 @@ import { runPage } from "./dom.js";
  * same cache instead of costing a second network round trip.
  */
 
-/** Run the page module a fetched (or the live) document declares, if any. */
+/**
+ * Run the page module a fetched (or the live) document declares, if any.
+ *
+ * Everything here is inside the error boundary on purpose. A page's `#app`
+ * ships a "Loading…" placeholder that only its own `init()` ever clears, so
+ * anything that throws before `init()` runs — a module that fails to parse,
+ * a missing export — would otherwise leave that placeholder on screen with
+ * no error anywhere the reader can see it, which reads as the site hanging
+ * rather than as a page that broke.
+ */
 async function activate(doc) {
   const script = doc.querySelector('script[type="module"][src^="/assets/js/pages/"]');
   if (!script) return; // e.g. the meta-refresh bookmark-redirect stub pages
-  const mod = await import(script.src);
-  return runPage(mod.init);
+  return runPage(async () => {
+    const mod = await import(script.src);
+    if (typeof mod.init !== "function") {
+      throw new Error(`${script.getAttribute("src")} has no init() export.`);
+    }
+    return mod.init();
+  });
 }
 
 /**
@@ -96,9 +110,23 @@ document.addEventListener("click", (event) => {
   if (url.pathname === location.pathname && url.hash) return; // same-page anchor
 
   event.preventDefault();
-  navigate(url.href);
+  // Anything unforeseen between here and the swap should still get the reader
+  // to the page they asked for: a real navigation always works, and is much
+  // better than an intercepted click that silently does nothing.
+  navigate(url.href).catch((error) => {
+    console.error(error);
+    location.href = url.href;
+  });
 });
 
-window.addEventListener("popstate", () => navigate(location.href, { push: false }));
+window.addEventListener("popstate", () => {
+  navigate(location.href, { push: false }).catch((error) => {
+    console.error(error);
+    location.reload();
+  });
+});
 
-activate(document);
+// The page reached by a real browser load. `activate` carries its own error
+// boundary, so this cannot reject; the guard is here so that a future change
+// to it can't quietly turn back into an unhandled rejection.
+activate(document).catch((error) => console.error(error));
