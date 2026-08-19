@@ -43,10 +43,10 @@ export function logoLink({ href = "/", variant = "colour", width = 150 } = {}) {
 /**
  * Where "back to my own area" goes, and what to call it. WHA staff administer
  * the portal rather than learn on it, so for them this is the admin dashboard,
- * not "My learning".
+ * not "My Courses".
  */
 export function homeLabel(role) {
-  return role === "WHA_ADMIN" ? "Admin dashboard" : "My learning";
+  return role === "WHA_ADMIN" ? "Admin dashboard" : "My Courses";
 }
 
 function navFor(role) {
@@ -67,17 +67,19 @@ function navFor(role) {
       ];
     case "ORG_ADMIN":
       return [
-        { href: "/dashboard.html", label: "My learning" },
-        { href: "/team/index.html", label: "Team" },
-        { href: "/invoices.html", label: "Invoices", match: ["/orders/"] },
         { href: "/programs/index.html", label: "Catalogue" },
+        { href: "/dashboard.html", label: "My Courses" },
+        { href: "/team/index.html", label: "Team" },
+        { href: "/invoices.html", label: "Payments and receipts", match: ["/orders/"] },
+        { href: "/certificates.html", label: "Certificates" },
       ];
     default:
       return [
-        { href: "/dashboard.html", label: "My learning" },
         { href: "/programs/index.html", label: "Catalogue" },
+        { href: "/dashboard.html", label: "My Courses" },
+        { href: "/invoices.html", label: "Payments and receipts", match: ["/orders/"] },
         { href: "/certificates.html", label: "Certificates" },
-        { href: "/invoices.html", label: "Invoices", match: ["/orders/"] },
+        { href: "/verify/index.html", label: "Verify" },
       ];
   }
 }
@@ -135,11 +137,16 @@ function userMenu(user) {
     ]),
 
     // WHA staff hold no seats and earn no certificates — both of these are
-    // learner concepts, and "My learning" pointed straight back at the admin
+    // learner concepts, and "My Courses" pointed straight back at the admin
     // dashboard for them, which read as a dead link.
+    //
+    // This goes to /dashboard.html directly rather than through homeFor(),
+    // which answers "where does this role land after signing in" — for a team
+    // administrator that is the Team page, so routing this item through it
+    // gave them a "My Courses" link that opened their team instead.
     ...(isStaff ? [] : [
-      el("a", { class: "user-menu__item", href: homeFor(user.role), role: "menuitem" },
-        "My learning"),
+      el("a", { class: "user-menu__item", href: "/dashboard.html", role: "menuitem" },
+        "My Courses"),
       el("a", { class: "user-menu__item", href: "/certificates.html", role: "menuitem" },
         "My certificates"),
     ]),
@@ -189,8 +196,12 @@ function userMenu(user) {
 /* --- Headers -------------------------------------------------------------- */
 
 /**
- * Marketing header. Shows "My learning" to someone already signed in, so a
+ * Marketing header. Shows "My Courses" to someone already signed in, so a
  * returning visitor is one click from their dashboard.
+ *
+ * Only pages that are purely public use this — anything a signed-in reader
+ * also has a tab for goes through autoChrome() instead, so the app header
+ * follows them there.
  */
 export async function renderPublicHeader(target = "#site-header") {
   const host = document.querySelector(target);
@@ -203,6 +214,7 @@ export async function renderPublicHeader(target = "#site-header") {
     el("div", { class: "shell site-header__bar" }, [
       logoLink({ href: "/", width: 140 }),
       el("nav", { class: "site-nav", "aria-label": "Main" }, [
+        el("a", { href: "/index.html", class: "nav-link" }, "Home"),
         el("a", { href: "/programs/index.html", class: "nav-link" }, "Catalogue"),
         el("a", { href: "/verify/index.html", class: "nav-link" }, "Verify"),
         ...(user
@@ -310,5 +322,26 @@ export async function publicChrome() {
 export async function appChrome(user) {
   renderFooter();
   await renderAppHeader(user);
+  return user;
+}
+
+/**
+ * Chrome for a page that anyone may read but that also sits in a signed-in
+ * user's own navigation — the catalogue, a programme, the verify pages.
+ *
+ * These used to take publicChrome() unconditionally, which meant a learner
+ * who clicked "Catalogue" in their own header watched it turn back into the
+ * marketing header, complete with a Sign in link, and had no way back to
+ * their courses except the one button. It read as being signed out. Which
+ * header to draw is a question about the reader, not about the page.
+ *
+ * Returns the signed-in user, or null — same shape publicChrome() returns,
+ * so callers swapping between them need no other change.
+ */
+export async function autoChrome() {
+  renderFooter();
+  const user = await getUser();
+  if (user) await renderAppHeader(user);
+  else await renderPublicHeader();
   return user;
 }

@@ -155,7 +155,8 @@ export async function init() {
 
   if (!orders.length) {
     mount("#app",
-      el("div", { class: "page-head" }, el("h1", { class: "display" }, "Invoices")),
+      el("div", { class: "page-head" },
+        el("h1", { class: "display" }, "Payments and receipts")),
       card(emptyState({
         iconName: "receipt",
         title: "No invoices yet",
@@ -187,7 +188,7 @@ export async function init() {
   mount("#app",
     el("div", { class: "page-head" }, [
       el("div", {}, [
-        el("h1", { class: "display" }, "Invoices"),
+        el("h1", { class: "display" }, "Payments and receipts"),
         el("p", {}, "Every invoice issued to you" + (user.role === "ORG_ADMIN" ? " and your team" : "") + "."),
       ]),
     ]),

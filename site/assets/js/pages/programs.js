@@ -1,5 +1,5 @@
 import { el, mount } from "../dom.js";
-import { publicChrome } from "../shell.js";
+import { autoChrome } from "../shell.js";
 import { emptyState, buttonLink } from "../ui.js";
 import { listPrograms } from "../catalog.js";
 import { programCard } from "../components/program-card.js";
@@ -7,7 +7,7 @@ import { programCard } from "../components/program-card.js";
 /** Port of src/app/(public)/programs/page.tsx. */
 
 export async function init() {
-  publicChrome();
+  autoChrome();
 
   const programs = await listPrograms();
 

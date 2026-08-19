@@ -1,6 +1,6 @@
 import { el, mount, param, setTitle, formatMinutes } from "../dom.js";
 import { icon, lessonIcon } from "../icons.js";
-import { publicChrome } from "../shell.js";
+import { autoChrome } from "../shell.js";
 import { badge, buttonLink, card, cardBody, emptyState } from "../ui.js";
 import { getProgramBySlug } from "../catalog.js";
 import { formatMoney, calculateTotals } from "../money.js";
@@ -74,7 +74,7 @@ function courseCard(course, index) {
 }
 
 export async function init() {
-  publicChrome();
+  autoChrome();
 
   const slug = param("slug");
   if (!slug) {

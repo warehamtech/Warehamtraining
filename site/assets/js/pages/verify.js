@@ -1,11 +1,11 @@
 import { $ } from "../dom.js";
 import { icon } from "../icons.js";
-import { publicChrome } from "../shell.js";
+import { autoChrome } from "../shell.js";
 
 /** Port of src/app/(public)/verify/page.tsx — the code entry form. */
 
 export async function init() {
-  publicChrome();
+  autoChrome();
 
   $("#mark")?.append(icon("shieldCheck", 24));
 

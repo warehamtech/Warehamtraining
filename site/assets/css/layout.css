@@ -128,7 +128,12 @@ main {
   padding: 0.375rem 0.75rem;
 }
 
-@media (min-width: 768px) {
+/* 1024px, not 768px: a learner's bar carries five tabs now, one of them
+ * "Payments and receipts". Nav links are nowrap and the bar is a fixed height
+ * with no wrapping, so between 768 and 1023px those five would quietly start
+ * scrolling inside .app-nav--inline with nothing on screen to say so. The
+ * stacked row below that width is built to overflow and shows it. */
+@media (min-width: 1024px) {
   .app-nav--inline { display: flex; }
   .app-nav--stacked { display: none; }
 }
@@ -160,10 +165,13 @@ main {
 }
 
 /* Both of these need the bar's full width, so below the app-nav breakpoint
-   the pill hides and View site moves into the stacked nav row (shell.js). */
+   the pill hides and View site moves into the stacked nav row (shell.js).
+   This query must stay in step with the .app-nav one above: shell.js appends
+   View site to the stacked row, so if this showed the button at a width where
+   that row is also visible, staff would see View site twice. */
 .view-site { display: none; }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .role-pill { display: inline-flex; }
   .view-site { display: inline-flex; }
 }

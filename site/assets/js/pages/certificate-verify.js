@@ -1,6 +1,6 @@
 import { el, mount, param, formatDate, setTitle } from "../dom.js";
 import { icon } from "../icons.js";
-import { publicChrome } from "../shell.js";
+import { autoChrome } from "../shell.js";
 import { badge, buttonLink, card, cardBody } from "../ui.js";
 import { rpc } from "../supabase.js";
 import { company } from "../config.js";
@@ -29,7 +29,7 @@ function detail(term, ...value) {
 }
 
 export async function init() {
-  publicChrome();
+  autoChrome();
 
   const code = param("code");
   if (!code) {

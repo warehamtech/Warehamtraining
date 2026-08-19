@@ -116,12 +116,32 @@
 # navigation is never blocked waiting on a revalidation response — the
 # worst case is one page seeing a version that's a few minutes old, which
 # then updates itself for the next request.
+#
+# That reasoning still holds for stylesheets, which is why CSS keeps it: a
+# stylesheet that is a few minutes old renders slightly stale paint and
+# nothing worse.
 [[headers]]
   for = "/assets/css/*"
   [headers.values]
     Cache-Control = "public, max-age=300, stale-while-revalidate=86400"
 
+# JavaScript cannot have that policy, because these files are ES modules that
+# import each other by name. Each URL is an independent cache entry with its
+# own age and none of them are versioned or content-hashed, so a browser is
+# free to pair a stale module with a fresh one. That is not hypothetical: it
+# shipped. Renaming dom.js's `page` export to `runPage` meant that for the
+# 24 hours of the stale-while-revalidate window, a rarely-visited page module
+# could still be the pre-rename copy asking for `page`, while dom.js — which
+# nearly every page imports, so it revalidates constantly — was already the
+# new one that no longer exports it. The result is a module graph torn across
+# two deploys and a page that dies on "does not provide an export named".
+#
+# So JS revalidates before use. An unchanged file still costs only a 304, and
+# the reason the old policy existed has gone away in any case: the
+# client-side router (assets/js/router.js) fetches each module once per tab
+# and keeps it in memory, so navigations no longer refetch anything at all
+# and this is paid only on a genuine page load.
 [[headers]]
   for = "/assets/js/*"
   [headers.values]
-    Cache-Control = "public, max-age=300, stale-while-revalidate=86400"
+    Cache-Control = "public, no-cache"
