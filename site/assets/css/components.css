@@ -687,3 +687,128 @@ textarea.control {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------------------
+   Drag-and-drop reordering — courses, lessons, lesson content blocks.
+   See assets/js/drag-reorder.js. The handle is the grip icon rendered at the
+   start of each row; the row itself is what's actually draggable.
+--------------------------------------------------------------------------- */
+
+.grip {
+  color: var(--ink-subtle);
+  flex-shrink: 0;
+}
+
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* The row currently being dragged. */
+.sortable-drag {
+  opacity: 0.4;
+}
+
+/* The row the dragged item would land on/next to — a rule marks which side. */
+.sortable-ghost {
+  position: relative;
+}
+
+.sortable-ghost::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--brand-600);
+  border-radius: var(--radius-full);
+}
+
+.sortable-ghost--before::before { top: -0.25rem; }
+.sortable-ghost--after::before { bottom: -0.25rem; }
+
+/* Reuses chevronDown for "move up" — cheaper than a second icon path. */
+.icon-flip {
+  transform: rotate(180deg);
+}
+
+/* ---------------------------------------------------------------------------
+   Rich text editor — the lesson TEXT block's formatting toolbar and
+   contenteditable surface. See richTextField() in admin-lesson.js.
+--------------------------------------------------------------------------- */
+
+.rich-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.rich-toolbar__btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.rich-toolbar__btn:hover {
+  background-color: var(--surface);
+  border-color: var(--line-strong);
+}
+
+.rich-toolbar__btn--bold { font-weight: 700; }
+.rich-toolbar__btn--italic { font-style: italic; }
+
+.control--editable {
+  min-height: 10rem;
+  height: auto;
+  padding: 0.75rem 1rem;
+  cursor: text;
+  overflow-y: auto;
+}
+
+/* .lesson-prose sets a muted reading colour; the editing surface reads
+   better at full ink strength while it's being written in. */
+.control--editable.lesson-prose {
+  color: var(--ink);
+}
+
+.control--editable:empty::before {
+  content: "Start writing…";
+  color: var(--ink-subtle);
+}
+
+/* ---------------------------------------------------------------------------
+   Publish-readiness checklist.
+--------------------------------------------------------------------------- */
+
+.checklist {
+  display: grid;
+  gap: 0.625rem;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.checklist-dot {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--line-strong);
+}

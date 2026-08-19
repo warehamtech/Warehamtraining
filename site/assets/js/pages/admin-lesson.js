@@ -8,6 +8,8 @@ import {
 import { requireRole } from "../session.js";
 import { sb, unwrap, signedUrl } from "../supabase.js";
 import { uploadLessonMedia, MAX_LESSON_MEDIA_UPLOAD } from "../storage-upload.js";
+import { makeSortable } from "../drag-reorder.js";
+import { renderBlock } from "../components/block-render.js";
 
 /**
  * Lesson editor: an ordered sequence of content blocks (text/image/video/
@@ -24,6 +26,65 @@ const BLOCK_LABEL = {
   VIDEO: "Video",
   EMBED: "Interactive embed",
 };
+
+/**
+ * A minimal WYSIWYG editor: a formatting toolbar over a contenteditable
+ * region styled with `.lesson-prose`, the same class the learner-facing
+ * lesson page renders into — what's edited here is what a learner sees, not
+ * an approximation of it. `document.execCommand` is deprecated but still
+ * universally supported; this is a small, internal, admin-only tool, so that
+ * trade is worth it over pulling in an editor library.
+ */
+function richTextField(initialHtml) {
+  const editable = el("div", {
+    class: "control control--editable lesson-prose",
+    contenteditable: "true",
+  });
+  editable.innerHTML = initialHtml ?? "";
+
+  const exec = (cmd, arg) => {
+    editable.focus();
+    document.execCommand(cmd, false, arg);
+  };
+
+  const toolBtn = (label, aria, onClick, extraClass) =>
+    el("button", {
+      type: "button",
+      class: extraClass ? `rich-toolbar__btn ${extraClass}` : "rich-toolbar__btn",
+      "aria-label": aria,
+      onClick,
+    }, label);
+
+  const toolbar = el("div", { class: "rich-toolbar" }, [
+    toolBtn("B", "Bold", () => exec("bold"), "rich-toolbar__btn--bold"),
+    toolBtn("I", "Italic", () => exec("italic"), "rich-toolbar__btn--italic"),
+    toolBtn("H2", "Heading 2", () => exec("formatBlock", "<h2>")),
+    toolBtn("H3", "Heading 3", () => exec("formatBlock", "<h3>")),
+    toolBtn("•", "Bulleted list", () => exec("insertUnorderedList")),
+    toolBtn("1.", "Numbered list", () => exec("insertOrderedList")),
+    toolBtn("“", "Quote", () => exec("formatBlock", "<blockquote>")),
+    toolBtn("Link", "Add link", () => {
+      const url = prompt("Link URL");
+      if (url) exec("createLink", url);
+    }),
+    toolBtn("Clear", "Clear formatting", () => exec("removeFormat")),
+  ]);
+
+  // Paste as plain text — the single biggest guard against Word/Google Docs
+  // dumping inline styles and stray markup into a lesson.
+  editable.addEventListener("paste", (event) => {
+    event.preventDefault();
+    document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
+  });
+
+  return el("div", { class: "field" }, [
+    el("label", { class: "field__label" }, "Content"),
+    toolbar,
+    editable,
+    el("p", { class: "field__hint" },
+      "Select text to format it. Pasted content keeps its wording, not its styling."),
+  ]);
+}
 
 async function render(admin) {
   const programId = param("id");
@@ -70,6 +131,10 @@ async function render(admin) {
 
   const upload = (file, prefix) => uploadLessonMedia(file, lesson.course.program_id, prefix);
 
+  // Filled in once the page head below is built. A settings save patches
+  // this directly instead of re-fetching and rebuilding the whole page.
+  let pageTitleEl = null;
+
   /* --- Lesson settings ------------------------------------------------------ */
 
   const settings = el("form", { class: "stack", novalidate: true }, [
@@ -84,22 +149,28 @@ async function render(admin) {
 
   settings.addEventListener("submit", async (event) => {
     event.preventDefault();
-    setPending(settings, true);
-    const { error } = await sb.from("lessons").update({
+
+    const nextValues = {
       title: settings.elements.title.value.trim(),
       duration_minutes: Number(settings.elements.durationMinutes.value) || 0,
-    }).eq("id", lesson.id);
+    };
+
+    setPending(settings, true);
+    const { error } = await sb.from("lessons").update(nextValues).eq("id", lesson.id);
     setPending(settings, false);
 
     if (error) return setFormMessage(settings, error.message);
+
+    Object.assign(lesson, nextValues);
+    if (pageTitleEl) pageTitleEl.textContent = lesson.title;
+    setTitle(`${lesson.title} — admin`);
     setFormMessage(settings, "Saved.", "success");
-    setTimeout(() => render(admin), 800);
   });
 
   /* --- Content blocks --------------------------------------------------------
    *
-   * Reordering is the same adjacent-position-swap pattern used for courses
-   * and lessons in admin-program.js — no drag-and-drop dependency.
+   * Blocks reorder by dragging a handle; the up/down pair next to it is the
+   * keyboard-operable equivalent, doing the same adjacent-position swap.
    */
 
   const moveBlock = async (block, direction) => {
@@ -110,6 +181,13 @@ async function render(admin) {
       sb.from("lesson_blocks").update({ position: swapWith.position }).eq("id", block.id),
       sb.from("lesson_blocks").update({ position: block.position }).eq("id", swapWith.id),
     ]);
+    render(admin);
+  };
+
+  /** Drag-and-drop drop handler: the list is already in its new DOM order — persist it. */
+  const reorderBlocks = async (orderedIds) => {
+    await Promise.all(orderedIds.map((id, i) =>
+      sb.from("lesson_blocks").update({ position: i + 1 }).eq("id", id)));
     render(admin);
   };
 
@@ -126,11 +204,7 @@ async function render(admin) {
   function blockFields(block, content) {
     switch (block.block_type) {
       case "TEXT":
-        return [field({
-          label: "HTML content", name: "html", as: "textarea", rows: 8,
-          value: content.html ?? "",
-          hint: "Rendered as-is. Headings, paragraphs, lists, tables and images are styled for you.",
-        })];
+        return [richTextField(content.html ?? "")];
 
       case "IMAGE":
         return [
@@ -186,7 +260,7 @@ async function render(admin) {
     }
   }
 
-  async function saveBlock(event, block, form) {
+  async function saveBlock(event, block, form, cardNode) {
     event.preventDefault();
     setFormMessage(form, null);
     setPending(form, true);
@@ -195,7 +269,8 @@ async function render(admin) {
     let next;
 
     if (block.block_type === "TEXT") {
-      next = { html: form.elements.html.value.trim() };
+      const editable = form.querySelector(".control--editable");
+      next = { html: editable.innerHTML.trim() };
     } else if (block.block_type === "IMAGE") {
       const file = form.elements.file.files?.[0];
       let fileKey = content.file_key ?? null;
@@ -254,8 +329,19 @@ async function render(admin) {
     setPending(form, false);
 
     if (error) return setFormMessage(form, error.message);
-    setFormMessage(form, "Saved.", "success");
-    setTimeout(() => render(admin), 800);
+
+    // The saved content is already what the form shows — no need to re-fetch
+    // and rebuild the whole page. Update this block in place; the only thing
+    // that can't be inferred from the form itself is a fresh signed preview
+    // URL for a newly uploaded image, so rebuild just this one card.
+    block.content = next;
+    if (block.block_type === "IMAGE") {
+      imagePreviews.set(block.id, await signedUrl("lesson-media", next.file_key, 3600));
+    }
+    const index = blocks.findIndex((b) => b.id === block.id);
+    const freshCard = blockCard(block, index);
+    setFormMessage(freshCard.querySelector("form"), "Saved.", "success");
+    cardNode.replaceWith(freshCard);
   }
 
   function blockCard(block, index) {
@@ -266,20 +352,26 @@ async function render(admin) {
       el("button", { class: "btn btn--secondary btn--sm", type: "submit" }, "Save block"),
     ]);
 
-    form.addEventListener("submit", (event) => saveBlock(event, block, form));
-
-    return el("li", {}, card([
+    const cardNode = el("li", { "data-sort-id": block.id }, card([
       el("div", { class: "card__header" }, [
         el("div", { class: "row" }, [
+          icon("gripVertical", 16, { class: "grip i-subtle" }),
           icon(blockIcon[block.block_type], 16, { class: "i-subtle" }),
           el("span", { class: "medium t-sm" }, BLOCK_LABEL[block.block_type]),
         ]),
         el("div", { class: "row" }, [
-          button(icon("chevronDown", 14), {
-            variant: "ghost", size: "sm", "aria-label": "Move block down",
-            disabled: index === blocks.length - 1,
-            onClick: () => moveBlock(block, 1),
-          }),
+          el("span", { class: "row row--tight" }, [
+            button(icon("chevronDown", 12, { class: "icon-flip" }), {
+              variant: "ghost", size: "sm", "aria-label": "Move block up",
+              disabled: index === 0,
+              onClick: () => moveBlock(block, -1),
+            }),
+            button(icon("chevronDown", 12), {
+              variant: "ghost", size: "sm", "aria-label": "Move block down",
+              disabled: index === blocks.length - 1,
+              onClick: () => moveBlock(block, 1),
+            }),
+          ]),
           button(icon("trash", 14), {
             variant: "ghost", size: "sm", "aria-label": "Delete block",
             onClick: async () => {
@@ -292,6 +384,10 @@ async function render(admin) {
       ]),
       cardBody(form),
     ]));
+
+    form.addEventListener("submit", (event) => saveBlock(event, block, form, cardNode));
+
+    return cardNode;
   }
 
   const addBlockRow = el("div", { class: "row row--wrap mt-3" }, [
@@ -381,23 +477,78 @@ async function render(admin) {
     render(admin);
   });
 
+  /* --- Preview as learner ----------------------------------------------------
+   *
+   * Reuses the exact renderBlock() the learner-facing lesson page renders
+   * with, so this is never a second, drifting implementation of what a block
+   * looks like — just the same function fed the in-memory (already saved)
+   * blocks.
+   */
+
+  let blockListEl = null;
+  const editView = el("div", {}, [
+    blocks.length
+      ? (blockListEl = el("ul", { class: "stack" }, blocks.map((block, i) => blockCard(block, i))))
+      : el("p", { class: "subtle t-sm" }, "No blocks yet — add one below."),
+    addBlockRow,
+  ]);
+
+  if (blockListEl && blocks.length > 1) {
+    makeSortable(blockListEl, "li[data-sort-id]", ".grip",
+      (orderedIds) => reorderBlocks(orderedIds));
+  }
+
+  const previewView = el("div", { class: "stack--lg" });
+  async function fillPreview() {
+    previewView.replaceChildren();
+    if (!blocks.length) {
+      previewView.append(el("p", { class: "subtle t-sm" },
+        "No content yet — add a block to see a preview."));
+      return;
+    }
+    for (const block of blocks) previewView.append(await renderBlock(block, lesson));
+  }
+
+  const mainBody = el("div", {}, editView);
+  let previewing = false;
+
+  const toggleBtn = button([icon("eye", 14), "Preview"], {
+    variant: "secondary",
+    onClick: async () => {
+      previewing = !previewing;
+      if (previewing) {
+        await fillPreview();
+        mainBody.replaceChildren(previewView);
+        toggleBtn.replaceChildren(icon("layers", 14), "Back to editing");
+      } else {
+        mainBody.replaceChildren(editView);
+        toggleBtn.replaceChildren(icon("eye", 14), "Preview");
+      }
+    },
+  });
+
   /* --- Page ----------------------------------------------------------------- */
+
+  pageTitleEl = el("h1", { class: "display mt-1" }, lesson.title);
 
   mount("#app",
     el("div", { class: "page-head" }, [
       el("div", {}, [
         el("a", { class: "link t-sm row", href: `/admin/program.html?id=${programId}` },
           [icon("arrowLeft", 14), lesson.course.title]),
-        el("h1", { class: "display mt-1" }, lesson.title),
+        pageTitleEl,
       ]),
-      button([icon("trash", 14), "Delete lesson"], {
-        variant: "ghost",
-        onClick: async () => {
-          if (!confirm(`Delete "${lesson.title}"? This cannot be undone.`)) return;
-          await sb.from("lessons").delete().eq("id", lesson.id);
-          location.href = `/admin/program.html?id=${programId}`;
-        },
-      }),
+      el("div", { class: "row" }, [
+        toggleBtn,
+        button([icon("trash", 14), "Delete lesson"], {
+          variant: "ghost",
+          onClick: async () => {
+            if (!confirm(`Delete "${lesson.title}"? This cannot be undone.`)) return;
+            await sb.from("lessons").delete().eq("id", lesson.id);
+            location.href = `/admin/program.html?id=${programId}`;
+          },
+        }),
+      ]),
     ]),
 
     el("div", { class: "grid grid--detail mt-4" }, [
@@ -405,12 +556,7 @@ async function render(admin) {
         cardHeader("Content blocks", {
           description: "The lesson's slides, in the order learners see them.",
         }),
-        cardBody([
-          blocks.length
-            ? el("ul", { class: "stack" }, blocks.map((block, i) => blockCard(block, i)))
-            : el("p", { class: "subtle t-sm" }, "No blocks yet — add one below."),
-          addBlockRow,
-        ]),
+        cardBody(mainBody),
       ]),
 
       el("aside", { class: "stack--lg" }, [

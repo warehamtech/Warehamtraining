@@ -416,6 +416,10 @@ async function render(admin) {
     return;
   }
 
+  // Filled in once the page head below is built. A settings save patches
+  // these directly instead of re-fetching and rebuilding the whole page.
+  let pageTitleEl = null, pageMetaEl = null;
+
   /* --- Settings ----------------------------------------------------------- */
 
   const settings = el("form", { class: "row row--wrap", novalidate: true }, [
@@ -434,14 +438,27 @@ async function render(admin) {
 
   settings.addEventListener("submit", async (event) => {
     event.preventDefault();
-    setPending(settings, true);
-    const { error } = await sb.from("quizzes").update({
+
+    const nextValues = {
       title: settings.elements.title.value.trim(),
       pass_mark_percent: Number(settings.elements.passMark.value),
       max_attempts: Number(settings.elements.maxAttempts.value),
-    }).eq("id", quiz.id);
+    };
+
+    setPending(settings, true);
+    const { error } = await sb.from("quizzes").update(nextValues).eq("id", quiz.id);
     setPending(settings, false);
     if (error) return setFormMessage(settings, error.message);
+
+    // The header (title + question/pass-mark/attempts summary) is the only
+    // other thing on the page that shows these values — patch it directly.
+    Object.assign(quiz, nextValues);
+    if (pageTitleEl) pageTitleEl.textContent = quiz.title;
+    if (pageMetaEl) {
+      pageMetaEl.textContent =
+        `${quiz.questions.length} questions · ${quiz.pass_mark_percent}% to pass · ` +
+        `${quiz.max_attempts} attempts`;
+    }
     setFormMessage(settings, "Saved.", "success");
   });
 
@@ -540,14 +557,17 @@ async function render(admin) {
     },
   });
 
+  pageTitleEl = el("h1", { class: "display mt-1" }, quiz.title);
+  pageMetaEl = el("p", {},
+    `${quiz.questions.length} questions · ${quiz.pass_mark_percent}% to pass · ` +
+    `${quiz.max_attempts} attempts`);
+
   mount("#app",
     el("div", { class: "page-head" }, [
       el("div", {}, [
         back,
-        el("h1", { class: "display mt-1" }, quiz.title),
-        el("p", {},
-          `${quiz.questions.length} questions · ${quiz.pass_mark_percent}% to pass · ` +
-          `${quiz.max_attempts} attempts`),
+        pageTitleEl,
+        pageMetaEl,
       ]),
       button([icon("trash", 14), "Delete assessment"], {
         variant: "ghost",

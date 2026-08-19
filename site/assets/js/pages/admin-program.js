@@ -9,6 +9,7 @@ import { requireRole } from "../session.js";
 import { sb, unwrap } from "../supabase.js";
 import { formatMoney } from "../money.js";
 import { uploadLessonMedia } from "../storage-upload.js";
+import { makeSortable } from "../drag-reorder.js";
 
 /**
  * Programme editor: settings, publish toggle, and the course/lesson tree.
@@ -66,6 +67,10 @@ async function render(admin) {
   const programDownloads = allDownloads.filter((d) => d.course_id === null);
   const courseDownloads = (courseId) => allDownloads.filter((d) => d.course_id === courseId);
 
+  // Filled in once the page head below is built. A settings save patches
+  // these directly instead of re-fetching and rebuilding the whole page.
+  let pageTitleEl = null, pageMetaEl = null, viewLinkEl = null;
+
   /* --- Settings ----------------------------------------------------------- */
 
   const settings = el("form", { class: "stack", novalidate: true }, [
@@ -98,8 +103,7 @@ async function render(admin) {
     setFieldErrors(settings, errors);
     if (Object.keys(errors).length) return;
 
-    setPending(settings, true);
-    const { error } = await sb.from("programs").update({
+    const nextValues = {
       title: settings.elements.title.value.trim(),
       slug: settings.elements.slug.value.trim(),
       standard: settings.elements.standard.value.trim() || null,
@@ -108,7 +112,10 @@ async function render(admin) {
       price_cents: Math.round(price * 100),
       duration_hours: settings.elements.durationHours.value
         ? Number(settings.elements.durationHours.value) : null,
-    }).eq("id", program.id);
+    };
+
+    setPending(settings, true);
+    const { error } = await sb.from("programs").update(nextValues).eq("id", program.id);
     setPending(settings, false);
 
     if (error) {
@@ -116,8 +123,14 @@ async function render(admin) {
         error.code === "23505" ? "That slug is already taken." : error.message);
       return;
     }
+
+    // Nothing else on the page derives from these fields except the header —
+    // patch it directly rather than re-fetching and rebuilding everything.
+    Object.assign(program, nextValues);
+    if (pageTitleEl) pageTitleEl.textContent = program.title;
+    if (pageMetaEl) pageMetaEl.textContent = `${formatMoney(program.price_cents)} per seat · /${program.slug}`;
+    if (viewLinkEl) viewLinkEl.href = `/programs/program.html?slug=${program.slug}`;
     setFormMessage(settings, "Saved.", "success");
-    setTimeout(() => render(admin), 800);
   });
 
   /* --- Downloads -----------------------------------------------------------
@@ -228,6 +241,28 @@ async function render(admin) {
     render(admin);
   };
 
+  /** Drag-and-drop drop handler: the list is already in its new DOM order — persist it. */
+  const reorderSiblings = async (kind, orderedIds) => {
+    await Promise.all(orderedIds.map((id, i) =>
+      sb.from(kind).update({ position: i + 1 }).eq("id", id)));
+    render(admin);
+  };
+
+  /** Keyboard-operable pair alongside the drag handle — dragging isn't the only way in. */
+  const moveButtons = (kind, row, siblings, index, label) =>
+    el("span", { class: "row row--tight" }, [
+      button(icon("chevronDown", 12, { class: "icon-flip" }), {
+        variant: "ghost", size: "sm", "aria-label": `Move ${label} up`,
+        disabled: index === 0,
+        onClick: () => move(kind, row, -1, siblings),
+      }),
+      button(icon("chevronDown", 12), {
+        variant: "ghost", size: "sm", "aria-label": `Move ${label} down`,
+        disabled: index === siblings.length - 1,
+        onClick: () => move(kind, row, 1, siblings),
+      }),
+    ]);
+
   const courseCard = (course, index) => {
     const addLesson = el("form", { class: "row row--wrap mt-3", novalidate: true }, [
       el("input", { class: "control grow", name: "title", required: true,
@@ -249,10 +284,37 @@ async function render(admin) {
       if (data) location.href = `/admin/lesson.html?id=${program.id}&lessonId=${data.id}`;
     });
 
-    return el("li", {},
+    const lessonList = course.lessons.length
+      ? el("ul", { class: "admin-lessons" }, course.lessons.map((lesson, i) =>
+          el("li", { class: "row", "data-sort-id": lesson.id }, [
+            icon("gripVertical", 14, { class: "grip i-subtle" }),
+            icon("layers", 16, { class: "i-subtle" }),
+            el("a", {
+              class: "link grow truncate",
+              href: `/admin/lesson.html?id=${program.id}&lessonId=${lesson.id}`,
+            }, lesson.title),
+            el("span", { class: "subtle t-xs tabular" }, [
+              String((lesson.lesson_blocks ?? []).length),
+              (lesson.lesson_blocks ?? []).length === 1 ? " block" : " blocks",
+            ]),
+            lesson.duration_minutes > 0
+              ? el("span", { class: "subtle t-xs tabular" },
+                  formatMinutes(lesson.duration_minutes))
+              : null,
+            moveButtons("lessons", lesson, course.lessons, i, "lesson"),
+          ])))
+      : el("p", { class: "subtle t-sm" }, "No lessons yet.");
+
+    if (course.lessons.length > 1) {
+      makeSortable(lessonList, "li[data-sort-id]", ".grip",
+        (orderedIds) => reorderSiblings("lessons", orderedIds));
+    }
+
+    return el("li", { "data-sort-id": course.id },
       card([
         el("div", { class: "card__header" }, [
           el("div", { class: "row" }, [
+            icon("gripVertical", 16, { class: "grip i-subtle" }),
             el("span", { class: "course-number" }, String(index + 1).padStart(2, "0")),
             el("div", {}, [
               el("h2", {}, course.title),
@@ -264,11 +326,7 @@ async function render(admin) {
             ]),
           ]),
           el("div", { class: "row" }, [
-            button(icon("chevronDown", 14), {
-              variant: "ghost", size: "sm", "aria-label": "Move course down",
-              disabled: index === courses.length - 1,
-              onClick: () => move("courses", course, 1, courses),
-            }),
+            moveButtons("courses", course, courses, index, "course"),
             buttonLink("Assessment",
               `/admin/quiz.html?id=${program.id}&courseId=${course.id}`,
               { variant: "secondary", size: "sm" }),
@@ -285,29 +343,7 @@ async function render(admin) {
           ]),
         ]),
         cardBody([
-          course.lessons.length
-            ? el("ul", { class: "admin-lessons" }, course.lessons.map((lesson, i) =>
-                el("li", { class: "row" }, [
-                  icon("layers", 16, { class: "i-subtle" }),
-                  el("a", {
-                    class: "link grow truncate",
-                    href: `/admin/lesson.html?id=${program.id}&lessonId=${lesson.id}`,
-                  }, lesson.title),
-                  el("span", { class: "subtle t-xs tabular" }, [
-                    String((lesson.lesson_blocks ?? []).length),
-                    (lesson.lesson_blocks ?? []).length === 1 ? " block" : " blocks",
-                  ]),
-                  lesson.duration_minutes > 0
-                    ? el("span", { class: "subtle t-xs tabular" },
-                        formatMinutes(lesson.duration_minutes))
-                    : null,
-                  button(icon("chevronDown", 14), {
-                    variant: "ghost", size: "sm", "aria-label": "Move lesson down",
-                    disabled: i === course.lessons.length - 1,
-                    onClick: () => move("lessons", lesson, 1, course.lessons),
-                  }),
-                ])))
-            : el("p", { class: "subtle t-sm" }, "No lessons yet."),
+          lessonList,
           addLesson,
           el("div", { class: "stack--sm mt-4" }, [
             el("p", { class: "section-label t-xs" }, "Course downloads"),
@@ -320,21 +356,86 @@ async function render(admin) {
       ]));
   };
 
+  /* --- Publish-readiness checklist ----------------------------------------- */
+
+  const checklistRow = (done, label) =>
+    el("li", { class: "checklist-item" }, [
+      done ? icon("checkCircle", 18, { class: "i-success" }) : el("span", { class: "checklist-dot" }),
+      el("span", { class: done ? "t-sm" : "t-sm muted" }, label),
+    ]);
+
+  const checklist = !program.published
+    ? card([
+        cardHeader("Before you publish"),
+        cardBody(el("ul", { class: "checklist" }, [
+          checklistRow(courses.length > 0, "At least one course"),
+          checklistRow(courses.length > 0 && lessonCount > 0, "Every course has a lesson"),
+          checklistRow(courses.length > 0 && courses.every((c) => c.quiz),
+            "Every course has an assessment"),
+          checklistRow(allDownloads.length > 0, "A download is attached (optional)"),
+        ])),
+      ], { className: "mt-6" })
+    : null;
+
+  /* --- Starter template ----------------------------------------------------
+   *
+   * Opt-in: a concrete, fully editable/deletable starting point instead of a
+   * blank curriculum tree. Manually adding a course is untouched.
+   */
+
+  const startTemplate = async () => {
+    const { data: courseRow } = await sb.from("courses").insert({
+      program_id: program.id, title: "Course 1", position: 1,
+    }).select("id").maybeSingle();
+    if (!courseRow) return;
+
+    const [{ data: lessonRow }] = await Promise.all([
+      sb.from("lessons").insert({ course_id: courseRow.id, title: "Lesson 1", position: 1 })
+        .select("id").maybeSingle(),
+      sb.from("quizzes").insert({ course_id: courseRow.id }),
+    ]);
+    if (lessonRow) {
+      await sb.from("lesson_blocks").insert({
+        lesson_id: lessonRow.id, block_type: "TEXT", position: 1, content: {},
+      });
+    }
+    render(admin);
+  };
+
   /* --- Page --------------------------------------------------------------- */
+
+  pageTitleEl = el("h1", { class: "display mt-1" }, program.title);
+  pageMetaEl = el("p", {}, `${formatMoney(program.price_cents)} per seat · /${program.slug}`);
+  viewLinkEl = buttonLink([icon("externalLink", 14), "View"],
+    `/programs/program.html?slug=${program.slug}`,
+    { variant: "secondary", size: "sm", target: "_blank" });
+
+  let courseList = null;
+  const curriculum = courses.length
+    ? (courseList = el("ol", { class: "stack mt-3" }, courses.map(courseCard)))
+    : card(emptyState({
+        iconName: "bookOpen",
+        title: "No courses yet",
+        description: "A programme is made of courses, each with lessons and one assessment.",
+        action: button("Start with a template", { variant: "secondary", onClick: startTemplate }),
+      }), { className: "mt-3" });
+
+  if (courseList && courses.length > 1) {
+    makeSortable(courseList, "li[data-sort-id]", ".grip",
+      (orderedIds) => reorderSiblings("courses", orderedIds));
+  }
 
   mount("#app",
     el("div", { class: "page-head" }, [
       el("div", {}, [
         el("a", { class: "link t-sm row", href: "/admin/programs.html" },
           [icon("arrowLeft", 14), "All programmes"]),
-        el("h1", { class: "display mt-1" }, program.title),
-        el("p", {}, `${formatMoney(program.price_cents)} per seat · /${program.slug}`),
+        pageTitleEl,
+        pageMetaEl,
       ]),
       el("div", { class: "row" }, [
         program.published ? badge("Published", "success") : badge("Draft", "warn"),
-        buttonLink([icon("externalLink", 14), "View"],
-          `/programs/program.html?slug=${program.slug}`,
-          { variant: "secondary", size: "sm", target: "_blank" }),
+        viewLinkEl,
         button(program.published ? "Unpublish" : "Publish", {
           variant: program.published ? "secondary" : "primary",
           disabled: !program.published && !canPublish,
@@ -350,26 +451,14 @@ async function render(admin) {
       ]),
     ]),
 
-    !canPublish && !program.published
-      ? el("div", { class: "notice notice--info" }, [
-          icon("info", 20, { class: "i-brand" }),
-          el("p", { class: "t-sm muted" },
-            "Add at least one course with a lesson before this programme can be published."),
-        ])
-      : null,
+    checklist,
 
     el("div", { class: "grid grid--detail mt-6" }, [
       el("section", {}, [
         el("div", { class: "row row--between row--wrap" }, [
           el("h2", { class: "section-label" }, "Curriculum"),
         ]),
-        courses.length
-          ? el("ol", { class: "stack mt-3" }, courses.map(courseCard))
-          : card(emptyState({
-              iconName: "bookOpen",
-              title: "No courses yet",
-              description: "A programme is made of courses, each with lessons and one assessment.",
-            }), { className: "mt-3" }),
+        curriculum,
         card(cardBody(courseForm), { className: "mt-4" }),
       ]),
 
