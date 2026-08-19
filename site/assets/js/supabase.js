@@ -35,7 +35,7 @@ export const sb = globalThis.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_K
 
 /**
  * Unwrap a PostgREST result, turning an error into a thrown Error so page
- * modules can rely on `page()` to render it.
+ * modules can rely on router.js's `runPage()` to render it.
  */
 export function unwrap({ data, error }) {
   if (error) throw new Error(friendly(error));

@@ -11,21 +11,24 @@ import { sb } from "./supabase.js";
  */
 
 let cached;
+let cachedAt;
 
-// Every navigation on this site is a full page load — there is no client-side
-// router — so the in-memory `cached` above starts undefined again on every
-// single page, and without help this function hits `profiles` once per page,
-// on top of that page's own data query. That's the main cost of "moving from
-// one page to the next feels slow": two sequential round trips to Supabase
-// before anything can render, every time, even when you were on an admin
-// page ten seconds ago and nothing about your account has changed.
+// router.js keeps this module alive for the life of a tab, so the in-memory
+// `cached` above survives client-side navigations rather than resetting on
+// every page the way it used to under full page loads. Without a TTL on it
+// too, `cached !== undefined` below would short-circuit forever after the
+// first call, and a role or organisation change made by an admin would never
+// be picked up by an already-open tab. Timestamping it with `cachedAt` keeps
+// the same PROFILE_CACHE_TTL_MS staleness bound the sessionStorage copy always
+// had: a role change still takes effect within this window, not "whenever the
+// token happens to be refreshed" — just not necessarily on the very next
+// click the way an uncached read would.
 //
-// sessionStorage survives a full navigation the way the in-memory cache
-// can't, so a short-lived copy there turns "one profile query per page" into
-// "one profile query per PROFILE_CACHE_TTL_MS window" for a click-through
-// like the admin nav. A role change still takes effect fast — within this
-// window, not "whenever the token happens to be refreshed" — just not
-// necessarily on the very next click the way an uncached read would.
+// sessionStorage still matters on top of this: it's what makes the *first*
+// profile read of a fresh tab (or a hard reload) cheap when a cached copy
+// from a recent tab is still within its window, which the in-memory `cached`
+// can't help with since it starts undefined every time this module is
+// re-evaluated from scratch.
 const PROFILE_CACHE_KEY = "wha_profile_cache";
 const PROFILE_CACHE_TTL_MS = 30_000;
 
@@ -55,17 +58,20 @@ function clearProfileCache() {
 }
 
 /**
- * The signed-in user's profile, or null. Cached for the life of the page so a
- * header, a guard and the page body cost one request between them, and in
- * sessionStorage for a short window so consecutive page loads usually cost
- * none at all.
+ * The signed-in user's profile, or null. Cached in memory for
+ * PROFILE_CACHE_TTL_MS so a header, a guard and the page body cost one
+ * request between them, and in sessionStorage for the same window so a fresh
+ * tab or a hard reload usually costs none at all.
  */
 export async function getUser({ refresh = false } = {}) {
-  if (cached !== undefined && !refresh) return cached;
+  if (cached !== undefined && !refresh && Date.now() - cachedAt < PROFILE_CACHE_TTL_MS) {
+    return cached;
+  }
 
   const { data: { session } } = await sb.auth.getSession();
   if (!session) {
     cached = null;
+    cachedAt = Date.now();
     clearProfileCache();
     return cached;
   }
@@ -74,6 +80,7 @@ export async function getUser({ refresh = false } = {}) {
     const fromCache = readProfileCache(session.user.id);
     if (fromCache) {
       cached = fromCache;
+      cachedAt = Date.now();
       return cached;
     }
   }
@@ -89,6 +96,7 @@ export async function getUser({ refresh = false } = {}) {
 
   if (error || !data) {
     cached = null;
+    cachedAt = Date.now();
     return cached;
   }
 
@@ -97,6 +105,7 @@ export async function getUser({ refresh = false } = {}) {
     organizationName: data.organizations?.name ?? null,
     authEmail: session.user.email,
   };
+  cachedAt = Date.now();
   writeProfileCache(session.user.id, cached);
   return cached;
 }
@@ -177,6 +186,7 @@ export async function signUp({ email, password, name, jobTitle }) {
 export async function signOut() {
   await sb.auth.signOut();
   cached = undefined;
+  cachedAt = undefined;
   clearProfileCache();
   location.href = "/login.html";
 }

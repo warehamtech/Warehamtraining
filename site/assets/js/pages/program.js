@@ -1,4 +1,4 @@
-import { el, mount, param, page, setTitle, formatMinutes } from "../dom.js";
+import { el, mount, param, setTitle, formatMinutes } from "../dom.js";
 import { icon, lessonIcon } from "../icons.js";
 import { publicChrome } from "../shell.js";
 import { badge, buttonLink, card, cardBody, emptyState } from "../ui.js";
@@ -73,7 +73,7 @@ function courseCard(course, index) {
     ])));
 }
 
-page(async () => {
+export async function init() {
   publicChrome();
 
   const slug = param("slug");
@@ -150,4 +150,4 @@ page(async () => {
       el("ol", { class: "stack mt-6", style: { maxWidth: "48rem" } },
         program.courses.map(courseCard)),
     ]));
-});
+}

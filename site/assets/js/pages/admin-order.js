@@ -1,4 +1,4 @@
-import { el, mount, param, page, setTitle, formatDate, formatDateTime, formatBytes } from "../dom.js";
+import { el, mount, param, setTitle, formatDate, formatDateTime, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
@@ -260,8 +260,8 @@ async function render(admin) {
     ]));
 }
 
-page(async () => {
+export async function init() {
   const admin = await requireRole("WHA_ADMIN");
   appChrome(admin);
   await render(admin);
-});
+}

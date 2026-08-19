@@ -1,4 +1,4 @@
-import { el, mount, param, page, setTitle } from "../dom.js";
+import { el, mount, param, setTitle } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
@@ -28,7 +28,7 @@ function validate(values) {
   return errors;
 }
 
-page(async () => {
+export async function init() {
   const user = await requireUser();
   appChrome(user);
 
@@ -229,4 +229,4 @@ page(async () => {
     el("div", { class: "grid grid--detail" }, [form, summary]));
 
   refreshSummary();
-});
+}

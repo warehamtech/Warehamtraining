@@ -105,7 +105,19 @@ function navLink({ href, label, match = [] }) {
 
 /* --- User menu ------------------------------------------------------------ */
 
+// renderAppHeader() runs once per client-side navigation now (router.js keeps
+// the page alive instead of reloading it), and each call rebuilds a fresh
+// menu with fresh document-level listeners below. Without aborting the
+// previous render's listeners first, they'd pile up for the life of the tab —
+// harmless individually (they just no-op against a detached `wrap`), but an
+// unbounded leak all the same.
+let menuAbort;
+
 function userMenu(user) {
+  menuAbort?.abort();
+  menuAbort = new AbortController();
+  const { signal } = menuAbort;
+
   const isStaff = user.role === "WHA_ADMIN";
 
   const panel = el("div", {
@@ -166,10 +178,10 @@ function userMenu(user) {
   });
   document.addEventListener("click", (event) => {
     if (!wrap.contains(event.target)) close();
-  });
+  }, { signal });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") close();
-  });
+  }, { signal });
 
   return wrap;
 }

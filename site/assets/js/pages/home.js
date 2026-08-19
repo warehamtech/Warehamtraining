@@ -1,4 +1,4 @@
-import { el, mount, page } from "../dom.js";
+import { el, mount } from "../dom.js";
 import { icon } from "../icons.js";
 import { publicChrome } from "../shell.js";
 import { emptyState } from "../ui.js";
@@ -48,7 +48,7 @@ const steps = [
   },
 ];
 
-page(async () => {
+export async function init() {
   publicChrome();
 
   mount("#trust", trust.map((item) =>
@@ -87,4 +87,4 @@ page(async () => {
       description: "Please refresh the page, or call us on (021) 713-2380.",
     }));
   }
-});
+}

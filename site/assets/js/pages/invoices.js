@@ -1,4 +1,4 @@
-import { el, formatDate, mount, page } from "../dom.js";
+import { el, formatDate, mount } from "../dom.js";
 import { appChrome } from "../shell.js";
 import { button, buttonLink, card, cardHeader, emptyState, stat } from "../ui.js";
 import { requireRole } from "../session.js";
@@ -133,7 +133,7 @@ function ledgerView(orders, view, sort, onSort) {
   });
 }
 
-page(async () => {
+export async function init() {
   const user = await requireRole("LEARNER", "ORG_ADMIN");
   appChrome(user);
 
@@ -206,4 +206,4 @@ page(async () => {
     el("div", { id: "invoice-view", class: "mt-4" }));
 
   render("");
-});
+}

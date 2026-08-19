@@ -1,4 +1,4 @@
-import { el, mount, param, page, setTitle, formatDate, formatBytes } from "../dom.js";
+import { el, mount, param, setTitle, formatDate, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
@@ -322,8 +322,8 @@ async function render(user) {
     ]));
 }
 
-page(async () => {
+export async function init() {
   const user = await requireUser();
   appChrome(user);
   await render(user);
-});
+}

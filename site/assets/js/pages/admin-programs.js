@@ -1,4 +1,4 @@
-import { el, mount, page } from "../dom.js";
+import { el, mount } from "../dom.js";
 import { appChrome } from "../shell.js";
 import { card, emptyState } from "../ui.js";
 import { requireRole } from "../session.js";
@@ -36,8 +36,8 @@ async function render(admin) {
   );
 }
 
-page(async () => {
+export async function init() {
   const admin = await requireRole("WHA_ADMIN");
   appChrome(admin);
   await render(admin);
-});
+}

@@ -1,11 +1,11 @@
-import { $, page } from "../dom.js";
+import { $ } from "../dom.js";
 import { renderPublicHeader, renderFooter } from "../shell.js";
 import { setFormMessage, setPending } from "../ui.js";
 import { getUser, signIn, resetPassword, nextAfterLogin } from "../session.js";
 
 /** Port of src/app/(auth)/login/ — page + login-form. */
 
-page(async () => {
+export async function init() {
   renderFooter();
   renderPublicHeader();
 
@@ -70,4 +70,4 @@ page(async () => {
       result.ok ? "success" : "error",
     );
   });
-});
+}

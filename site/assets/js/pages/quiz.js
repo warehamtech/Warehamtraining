@@ -1,4 +1,4 @@
-import { el, mount, param, page, setTitle } from "../dom.js";
+import { el, mount, param, setTitle } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
@@ -56,7 +56,7 @@ function isAnswerComplete(question, value) {
   }
 }
 
-page(async () => {
+export async function init() {
   const user = await requireUser();
   appChrome(user);
 
@@ -160,7 +160,7 @@ page(async () => {
   }
 
   runner({ enrollmentId, quiz, questions, state, programHref });
-});
+}
 
 /* --- Matching: click a left item, then a right item, to pair them --------- */
 

@@ -154,10 +154,13 @@ export function showError(target, message) {
 }
 
 /**
- * Wrap a page's entry point so a thrown error becomes a readable message
- * instead of a blank screen and a console trace nobody sees.
+ * Run a page's entry point so a thrown error becomes a readable message
+ * instead of a blank screen and a console trace nobody sees. Called by
+ * router.js — once for the page reached by the initial hard load, and again
+ * for every client-side navigation after that — rather than by pages
+ * themselves, so the same error boundary applies either way.
  */
-export function page(fn) {
+export function runPage(fn) {
   const run = () =>
     Promise.resolve(fn()).catch((error) => {
       console.error(error);

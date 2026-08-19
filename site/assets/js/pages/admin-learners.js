@@ -1,4 +1,4 @@
-import { el, mount, page, relativeDays } from "../dom.js";
+import { el, mount, relativeDays } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
@@ -11,7 +11,7 @@ import { roleLabels } from "../config.js";
 
 /** Port of src/app/(app)/admin/learners/page.tsx. */
 
-page(async () => {
+export async function init() {
   const admin = await requireRole("WHA_ADMIN");
   appChrome(admin);
 
@@ -141,4 +141,4 @@ page(async () => {
           description: "People appear here as soon as they register or accept an invitation.",
           action: buttonLink("Back to invoices", "/admin/invoices.html"),
         }), { className: "mt-6" }));
-});
+}

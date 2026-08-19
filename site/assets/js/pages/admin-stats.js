@@ -1,4 +1,4 @@
-import { el, mount, page } from "../dom.js";
+import { el, mount } from "../dom.js";
 import { appChrome } from "../shell.js";
 import { badge, card, cardHeader, emptyState, stat, table } from "../ui.js";
 import { requireRole } from "../session.js";
@@ -51,7 +51,7 @@ function rankCard(title, description, rows, { valueLabel, formatValue }) {
   ]);
 }
 
-page(async () => {
+export async function init() {
   const admin = await requireRole("WHA_ADMIN");
   appChrome(admin);
 
@@ -200,4 +200,4 @@ page(async () => {
             title: "No enrolments yet",
             description: "Seats appear here as soon as an order is activated.",
           }))));
-});
+}

@@ -1,4 +1,4 @@
-import { el, mount, page, formatDate } from "../dom.js";
+import { el, mount, formatDate } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
@@ -103,7 +103,7 @@ function pendingOrderRow(order) {
   ]);
 }
 
-page(async () => {
+export async function init() {
   const user = await requireUser();
   appChrome(user);
 
@@ -195,4 +195,4 @@ page(async () => {
           cardFooter(el("a", { class: "link t-sm", href: "/invoices.html" }, "View all invoices →")),
         ], { className: "mt-8" })
       : null);
-});
+}

@@ -1,4 +1,4 @@
-import { el, mount, param, page, setTitle, formatBytes } from "../dom.js";
+import { el, mount, param, setTitle, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import { badge, button, buttonLink, card, cardBody, emptyState } from "../ui.js";
@@ -48,7 +48,7 @@ function downloadRow(download, acknowledged, onAcknowledge) {
   ]);
 }
 
-page(async () => {
+export async function init() {
   const user = await requireUser();
   appChrome(user);
   setTitle("Before you continue");
@@ -139,4 +139,4 @@ page(async () => {
     card(cardBody(list)),
     footer,
   ]);
-});
+}

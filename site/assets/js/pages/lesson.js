@@ -1,6 +1,4 @@
-import {
-  el, mount, param, page, rawHtml, setTitle, formatMinutes, formatBytes,
-} from "../dom.js";
+import { el, mount, param, rawHtml, setTitle, formatMinutes, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import { badge, buttonLink, card, cardBody, emptyState } from "../ui.js";
@@ -126,7 +124,7 @@ function lessonFooter({ enrollmentId, lessonId, complete, next, onChange }) {
   ]);
 }
 
-page(async () => {
+export async function init() {
   const user = await requireUser();
   appChrome(user);
 
@@ -269,4 +267,4 @@ page(async () => {
 
   // Record the visit; failure here is never worth telling the learner about.
   sb.rpc("touch_enrollment", { p_enrollment_id: enrollmentId });
-});
+}

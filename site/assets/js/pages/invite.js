@@ -1,4 +1,4 @@
-import { el, mount, param, page } from "../dom.js";
+import { el, mount, param } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderPublicHeader, renderFooter } from "../shell.js";
 import {
@@ -31,7 +31,7 @@ function invalid(message) {
   ])));
 }
 
-page(async () => {
+export async function init() {
   renderFooter();
   renderPublicHeader();
 
@@ -149,4 +149,4 @@ page(async () => {
 
     location.href = "/dashboard.html";
   });
-});
+}

@@ -1,4 +1,4 @@
-import { el, mount, param, page, setTitle } from "../dom.js";
+import { el, mount, param, setTitle } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
@@ -14,7 +14,7 @@ import { curriculumSidebar } from "../components/curriculum.js";
  * Port of src/app/(app)/learn/[enrollmentId]/page.tsx.
  */
 
-page(async () => {
+export async function init() {
   const user = await requireUser();
   appChrome(user);
 
@@ -123,4 +123,4 @@ page(async () => {
     el("div", { class: "player" }, [curriculumSidebar(progress), overview]));
 
   sb.rpc("touch_enrollment", { p_enrollment_id: enrollmentId });
-});
+}

@@ -1,4 +1,4 @@
-import { $, el, mount, page } from "../dom.js";
+import { $, el, mount } from "../dom.js";
 import { renderPublicHeader, renderFooter } from "../shell.js";
 import { setFieldErrors, setFormMessage, setPending, card, cardBody, buttonLink } from "../ui.js";
 import { icon } from "../icons.js";
@@ -15,7 +15,7 @@ function validate({ name, email, password }) {
   return errors;
 }
 
-page(async () => {
+export async function init() {
   renderFooter();
   renderPublicHeader();
 
@@ -81,4 +81,4 @@ page(async () => {
     const user = await getUser({ refresh: true });
     location.href = nextAfterLogin(user?.role ?? "LEARNER");
   });
-});
+}

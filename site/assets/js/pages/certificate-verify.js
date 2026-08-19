@@ -1,4 +1,4 @@
-import { el, mount, param, page, formatDate, setTitle } from "../dom.js";
+import { el, mount, param, formatDate, setTitle } from "../dom.js";
 import { icon } from "../icons.js";
 import { publicChrome } from "../shell.js";
 import { badge, buttonLink, card, cardBody } from "../ui.js";
@@ -28,7 +28,7 @@ function detail(term, ...value) {
   return el("div", {}, [el("dt", { class: "verify-term" }, term), ...value.flat()]);
 }
 
-page(async () => {
+export async function init() {
   publicChrome();
 
   const code = param("code");
@@ -106,4 +106,4 @@ page(async () => {
       "Verified against the Wareham & Associates training register. ",
       el("a", { class: "link", href: "/verify/index.html" }, "Check another certificate"),
     ]));
-});
+}
