@@ -269,7 +269,13 @@ export async function renderAppHeader(user, target = "#site-header") {
 
 /* --- Footer --------------------------------------------------------------- */
 
-export function renderFooter(target = "#site-footer") {
+/**
+ * `user` decides one link: the Portal column offered "Sign in" to everybody,
+ * including people who were already signed in and reading it from inside
+ * their own account. Signed in, that slot points back at their own area
+ * instead.
+ */
+export function renderFooter(user = null, target = "#site-footer") {
   const host = document.querySelector(target);
   if (!host) return;
 
@@ -285,7 +291,9 @@ export function renderFooter(target = "#site-footer") {
         el("h2", {}, "Portal"),
         el("ul", {}, [
           el("li", {}, el("a", { href: "/programs/index.html" }, "Training catalogue")),
-          el("li", {}, el("a", { href: "/login.html" }, "Sign in")),
+          el("li", {}, user
+            ? el("a", { href: homeFor(user.role) }, homeLabel(user.role))
+            : el("a", { href: "/login.html" }, "Sign in")),
           el("li", {}, el("a", { href: "/verify/index.html" }, "Verify a certificate")),
         ]),
       ]),
@@ -310,9 +318,10 @@ export function renderFooter(target = "#site-footer") {
  * Returns the signed-in user, if there is one.
  */
 export async function publicChrome() {
-  renderFooter();
+  const user = await getUser();
+  renderFooter(user);
   await renderPublicHeader();
-  return getUser();
+  return user;
 }
 
 /**
@@ -320,7 +329,7 @@ export async function publicChrome() {
  * is redirected before anything renders.
  */
 export async function appChrome(user) {
-  renderFooter();
+  renderFooter(user);
   await renderAppHeader(user);
   return user;
 }
@@ -339,8 +348,8 @@ export async function appChrome(user) {
  * so callers swapping between them need no other change.
  */
 export async function autoChrome() {
-  renderFooter();
   const user = await getUser();
+  renderFooter(user);
   if (user) await renderAppHeader(user);
   else await renderPublicHeader();
   return user;
