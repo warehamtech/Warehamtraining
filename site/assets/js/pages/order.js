@@ -215,7 +215,9 @@ async function render(user) {
   mount("#app",
     el("div", { class: "page-head" }, [
       el("div", {}, [
-        el("p", { class: "eyebrow" }, "Order"),
+        el("a", { class: "link t-sm row", href: "/invoices.html" },
+          [icon("arrowLeft", 14), "Back to invoices"]),
+        el("p", { class: "eyebrow mt-1" }, "Order"),
         el("h1", { class: "display tabular" }, order.invoice_number),
         el("p", {}, order.program.title),
       ]),

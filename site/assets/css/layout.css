@@ -932,3 +932,13 @@ main {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+
+.stat__hint {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+}
+
+.stat__hint--alert {
+  color: var(--danger);
+}

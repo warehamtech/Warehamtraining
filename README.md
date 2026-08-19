@@ -64,7 +64,7 @@ learner, then promote yourself once, in **SQL Editor**:
 update public.profiles set role = 'WHA_ADMIN' where email = 'you@wha.co.za';
 ```
 
-From then on the admin area at `/admin/orders.html` is available, and you can
+From then on the admin area at `/admin/invoices.html` is available, and you can
 build the catalogue from `/admin/programs.html`.
 
 ### 5. Deploy the site
@@ -125,7 +125,7 @@ company, seat count and billing details, then issues a numbered VAT invoice
 (`WHA-INV-{year}-{seq}`, 15% VAT) as a PDF, emailed and downloadable.
 
 **Activation.** The buyer uploads proof of payment; a WHA admin reviews it
-beside the invoice at `/admin/orders.html` and activates. That creates one
+beside the invoice at `/admin/invoices.html` and activates. That creates one
 enrollment row per seat and writes an `audit_log` entry recording who approved
 it. Individuals are auto-assigned their seat; company seats land in a pool for
 the team administrator to allocate.

@@ -89,7 +89,7 @@ function activatePanel(order, reload) {
 async function render(admin) {
   const orderId = param("id");
   if (!orderId) {
-    location.replace("/admin/orders.html");
+    location.replace("/admin/invoices.html");
     return;
   }
 
@@ -113,7 +113,7 @@ async function render(admin) {
     mount("#app", emptyState({
       iconName: "search",
       title: "Order not found",
-      action: buttonLink("Back to orders", "/admin/orders.html"),
+      action: buttonLink("Back to invoices", "/admin/invoices.html"),
     }));
     return;
   }
@@ -133,8 +133,8 @@ async function render(admin) {
   mount("#app",
     el("div", { class: "page-head" }, [
       el("div", {}, [
-        el("a", { class: "link t-sm row", href: "/admin/orders.html" },
-          [icon("arrowLeft", 14), "All orders"]),
+        el("a", { class: "link t-sm row", href: "/admin/invoices.html" },
+          [icon("arrowLeft", 14), "Back to invoices"]),
         el("h1", { class: "display tabular mt-1" }, order.invoice_number),
         el("p", {}, order.program.title),
       ]),

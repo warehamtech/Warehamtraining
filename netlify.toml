@@ -40,6 +40,11 @@
   status = 200
 
 [[redirects]]
+  from = "/invoices"
+  to = "/invoices.html"
+  status = 200
+
+[[redirects]]
   from = "/invite"
   to = "/invite.html"
   status = 200

@@ -2,7 +2,7 @@ import { el, mount, page, formatDate } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
-  badge, buttonLink, card, cardBody, cardHeader, emptyState, progressBar, progressRing,
+  badge, buttonLink, card, cardBody, cardFooter, cardHeader, emptyState, progressBar, progressRing,
 } from "../ui.js";
 import { requireUser } from "../session.js";
 import { sb, unwrap } from "../supabase.js";
@@ -192,6 +192,7 @@ page(async () => {
             description: "These orders unlock as soon as payment is confirmed.",
           }),
           el("ul", { class: "divided" }, pendingOrders.map(pendingOrderRow)),
+          cardFooter(el("a", { class: "link t-sm", href: "/invoices.html" }, "View all invoices →")),
         ], { className: "mt-8" })
       : null);
 });

@@ -130,7 +130,7 @@ export async function requireRole(...roles) {
 export function homeFor(role) {
   switch (role) {
     case "WHA_ADMIN":
-      return "/admin/orders.html";
+      return "/admin/invoices.html";
     case "ORG_ADMIN":
       return "/team/index.html";
     default:

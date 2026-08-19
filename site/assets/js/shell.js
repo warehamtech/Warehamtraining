@@ -55,9 +55,12 @@ function navFor(role) {
       // No "Catalogue" here: for staff the public site is a separate place to
       // visit, not a section of the admin area, so it gets the View site
       // button in the bar instead.
+      //
+      // Orders and Invoices used to be two tabs over the same `orders` rows —
+      // one tab now does both jobs, so the order detail page (/admin/order.html,
+      // singular) is folded into its match list too.
       return [
-        { href: "/admin/orders.html", label: "Orders" },
-        { href: "/admin/invoices.html", label: "Invoices" },
+        { href: "/admin/invoices.html", label: "Invoices", match: ["/admin/order"] },
         { href: "/admin/programs.html", label: "Programmes" },
         { href: "/admin/learners.html", label: "Learners" },
         { href: "/admin/stats.html", label: "Statistics" },
@@ -66,7 +69,7 @@ function navFor(role) {
       return [
         { href: "/dashboard.html", label: "My learning" },
         { href: "/team/index.html", label: "Team" },
-        { href: "/team/billing.html", label: "Billing" },
+        { href: "/invoices.html", label: "Invoices", match: ["/orders/"] },
         { href: "/programs/index.html", label: "Catalogue" },
       ];
     default:
@@ -74,15 +77,25 @@ function navFor(role) {
         { href: "/dashboard.html", label: "My learning" },
         { href: "/programs/index.html", label: "Catalogue" },
         { href: "/certificates.html", label: "Certificates" },
+        { href: "/invoices.html", label: "Invoices", match: ["/orders/"] },
       ];
   }
 }
 
-/** Mark the nav item for the section we are in, the way NavLink did. */
-function navLink({ href, label }) {
+/**
+ * Mark the nav item for the section we are in, the way NavLink did.
+ *
+ * `match` covers pages a tab owns that don't share its URL prefix — the
+ * order detail page lives at /admin/order.html (singular), which is not a
+ * prefix match for the Invoices tab at /admin/invoices.html, so without this
+ * it highlighted nothing at all.
+ */
+function navLink({ href, label, match = [] }) {
   const current = location.pathname;
   const base = href.replace(/\/index\.html$|\.html$/, "");
-  const active = current === href || (base && current.startsWith(base));
+  const active = current === href
+    || (base && current.startsWith(base))
+    || match.some((prefix) => current.startsWith(prefix));
   return el("a", {
     href,
     class: "nav-link",

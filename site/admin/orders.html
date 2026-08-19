@@ -3,24 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Orders — WHA admin</title>
+<title>Invoices — WHA admin</title>
 <meta name="robots" content="noindex">
+<!--
+  Orders and Invoices used to be two separate admin tabs over the same
+  `orders` rows — the review queue and the ledger, with no way to search or
+  sort the queue and no due dates on the ledger. They're one tab now. This
+  page only exists so old links and bookmarks still land somewhere.
+-->
+<meta http-equiv="refresh" content="0; url=/admin/invoices.html">
+<link rel="canonical" href="/admin/invoices.html">
 <link rel="icon" href="/assets/brand/wha-logo.png">
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/components.css">
 <link rel="stylesheet" href="/assets/css/layout.css">
-<script defer src="/assets/vendor/supabase.js"></script>
-<script type="module" src="/assets/js/pages/admin-orders.js"></script>
 </head>
 <body>
-<a class="skip-link" href="#app">Skip to content</a>
-<header id="site-header"></header>
-
-<main id="app" class="shell section--tight">
-  <p class="page-state">Loading…</p>
+<main class="shell shell--narrow section center">
+  <p class="muted">
+    Orders has moved into Invoices.
+    Redirecting… if nothing happens, <a class="link" href="/admin/invoices.html">go to Invoices</a>.
+  </p>
 </main>
-
-<footer id="site-footer"></footer>
 </body>
 </html>

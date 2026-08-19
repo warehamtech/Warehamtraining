@@ -171,7 +171,7 @@ async function render(admin) {
         el("p", {}, "Seats, invitations and progress across your team."),
       ]),
       el("div", { class: "row" }, [
-        buttonLink("Billing", "/team/billing.html", { variant: "secondary" }),
+        buttonLink("Invoices", "/invoices.html", { variant: "secondary" }),
         button([icon("download", 16), "Export CSV"], {
           variant: "secondary",
           disabled: !csvRows.length,

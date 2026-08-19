@@ -294,10 +294,13 @@ export function definitionList(pairs) {
       el("div", {}, [el("dt", {}, term), el("dd", {}, value)])));
 }
 
-export function stat(label, value) {
+export function stat(label, value, { hint, hintTone } = {}) {
   return el("div", { class: "stat" }, [
     el("dt", {}, label),
     el("dd", { class: "tabular" }, value),
+    hint
+      ? el("p", { class: hintTone ? `stat__hint stat__hint--${hintTone}` : "stat__hint" }, hint)
+      : null,
   ]);
 }
 

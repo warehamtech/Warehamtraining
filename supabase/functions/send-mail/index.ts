@@ -123,7 +123,7 @@ async function proofReceived(sb: ReturnType<typeof clientFor>, orderId: string) 
              (${formatMoney(order.total_cents)}).</p>
           <p>Review it and activate the order to release the seats.</p>
         `,
-        cta: { label: "Open the review queue", url: `${SITE_URL}/admin/orders.html` },
+        cta: { label: "Open the invoice queue", url: `${SITE_URL}/admin/invoices.html` },
       }),
     })));
 

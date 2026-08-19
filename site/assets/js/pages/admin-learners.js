@@ -139,6 +139,6 @@ page(async () => {
           iconName: "users",
           title: "No accounts yet",
           description: "People appear here as soon as they register or accept an invitation.",
-          action: buttonLink("Back to orders", "/admin/orders.html"),
+          action: buttonLink("Back to invoices", "/admin/invoices.html"),
         }), { className: "mt-6" }));
 });
