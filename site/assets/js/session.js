@@ -12,9 +12,53 @@ import { sb } from "./supabase.js";
 
 let cached;
 
+// Every navigation on this site is a full page load — there is no client-side
+// router — so the in-memory `cached` above starts undefined again on every
+// single page, and without help this function hits `profiles` once per page,
+// on top of that page's own data query. That's the main cost of "moving from
+// one page to the next feels slow": two sequential round trips to Supabase
+// before anything can render, every time, even when you were on an admin
+// page ten seconds ago and nothing about your account has changed.
+//
+// sessionStorage survives a full navigation the way the in-memory cache
+// can't, so a short-lived copy there turns "one profile query per page" into
+// "one profile query per PROFILE_CACHE_TTL_MS window" for a click-through
+// like the admin nav. A role change still takes effect fast — within this
+// window, not "whenever the token happens to be refreshed" — just not
+// necessarily on the very next click the way an uncached read would.
+const PROFILE_CACHE_KEY = "wha_profile_cache";
+const PROFILE_CACHE_TTL_MS = 30_000;
+
+function readProfileCache(userId) {
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (entry.userId !== userId || Date.now() - entry.savedAt > PROFILE_CACHE_TTL_MS) return null;
+    return entry.profile;
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileCache(userId, profile) {
+  try {
+    sessionStorage.setItem(PROFILE_CACHE_KEY,
+      JSON.stringify({ userId, savedAt: Date.now(), profile }));
+  } catch {
+    /* storage full or unavailable — caching is an optimisation, not a requirement */
+  }
+}
+
+function clearProfileCache() {
+  try { sessionStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
+}
+
 /**
  * The signed-in user's profile, or null. Cached for the life of the page so a
- * header, a guard and the page body cost one request between them.
+ * header, a guard and the page body cost one request between them, and in
+ * sessionStorage for a short window so consecutive page loads usually cost
+ * none at all.
  */
 export async function getUser({ refresh = false } = {}) {
   if (cached !== undefined && !refresh) return cached;
@@ -22,12 +66,21 @@ export async function getUser({ refresh = false } = {}) {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) {
     cached = null;
+    clearProfileCache();
     return cached;
   }
 
+  if (!refresh) {
+    const fromCache = readProfileCache(session.user.id);
+    if (fromCache) {
+      cached = fromCache;
+      return cached;
+    }
+  }
+
   // Role and organisation are read fresh from `profiles` rather than taken
-  // from the JWT, so a role change takes effect on the next page load rather
-  // than whenever the token happens to be refreshed.
+  // from the JWT, so a role change takes effect within PROFILE_CACHE_TTL_MS
+  // rather than whenever the token happens to be refreshed.
   const { data, error } = await sb
     .from("profiles")
     .select("id, email, name, role, job_title, organization_id, organizations(name)")
@@ -44,6 +97,7 @@ export async function getUser({ refresh = false } = {}) {
     organizationName: data.organizations?.name ?? null,
     authEmail: session.user.email,
   };
+  writeProfileCache(session.user.id, cached);
   return cached;
 }
 
@@ -123,6 +177,7 @@ export async function signUp({ email, password, name, jobTitle }) {
 export async function signOut() {
   await sb.auth.signOut();
   cached = undefined;
+  clearProfileCache();
   location.href = "/login.html";
 }
 
