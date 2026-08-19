@@ -35,6 +35,11 @@
   status = 200
 
 [[redirects]]
+  from = "/account"
+  to = "/account.html"
+  status = 200
+
+[[redirects]]
   from = "/checkout"
   to = "/checkout.html"
   status = 200

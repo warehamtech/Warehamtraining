@@ -136,27 +136,19 @@ function userMenu(user) {
       ]),
     ]),
 
-    // WHA staff hold no seats and earn no certificates — both of these are
-    // learner concepts, and "My Courses" pointed straight back at the admin
-    // dashboard for them, which read as a dead link.
-    //
-    // This goes to /dashboard.html directly rather than through homeFor(),
-    // which answers "where does this role land after signing in" — for a team
-    // administrator that is the Team page, so routing this item through it
-    // gave them a "My Courses" link that opened their team instead.
-    ...(isStaff ? [] : [
-      el("a", { class: "user-menu__item", href: "/dashboard.html", role: "menuitem" },
-        "My Courses"),
-      el("a", { class: "user-menu__item", href: "/certificates.html", role: "menuitem" },
-        "My certificates"),
-    ]),
+    // Two options, the same two for everyone. My Courses and My certificates
+    // used to live here as well, but both are tabs in the bar already for the
+    // roles that have them, and staff — who hold no seats and earn no
+    // certificates — were left with a menu containing nothing but Sign out.
+    el("a", { class: "user-menu__item", href: "/account.html", role: "menuitem" },
+      "My details"),
 
     el("button", {
       class: "user-menu__item",
       type: "button",
       role: "menuitem",
       onClick: () => signOut(),
-    }, "Sign out"),
+    }, "Log out"),
   ]);
 
   const trigger = el("button", {
