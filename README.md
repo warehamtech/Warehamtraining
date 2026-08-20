@@ -6,13 +6,34 @@ payment, work through video/written/PDF lessons against a live progress bar,
 pass an assessment per course, and download a verifiable certificate.
 
 Plain HTML, CSS and JavaScript, with **Supabase** as the entire backend and
-**Netlify** for hosting. There is no build step and no Node runtime in
-production: `site/` is the website.
+**Netlify** for hosting. No framework, no bundler and no Node runtime in
+production: `site/` is the website, served exactly as it sits on disk, and any
+page still opens straight from the filesystem.
+
+Two scripts under `build/` rewrite parts of the committed files in place —
+they generate nothing new to deploy and there is no output directory. See
+[Generated files](#generated-files); the short version is that you run
+`npm run generate` after changing a page module's imports or the catalogue.
 
 ```
 site/                the website — this is what Netlify serves
+build/               scripts that rewrite parts of site/ in place
 supabase/            database schema, security policies, functions
 ```
+
+> **On Windows PowerShell**, `npm` and `npx` may fail with *"cannot be loaded
+> because running scripts is disabled on this system"*. PowerShell is refusing
+> to run npm's `.ps1` wrapper. Either call `npm.cmd` / `npx.cmd` instead — the
+> batch shims are not PowerShell scripts, so the policy does not apply — or
+> allow local scripts once, for your account only:
+>
+> ```powershell
+> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+> ```
+>
+> Note also that Windows PowerShell 5.1 has no `&&` operator. Commands joined
+> with it in this README run fine through npm (npm hands them to `cmd.exe`) and
+> in Git Bash, but typed directly into PowerShell 5.1 they need `;` instead.
 
 ---
 
@@ -71,10 +92,22 @@ build the catalogue from `/admin/programs.html`.
 
 Connect the repository in Netlify, or drag the `site/` folder onto
 [app.netlify.com/drop](https://app.netlify.com/drop). `netlify.toml` already
-sets the publish directory and the security headers — there is no build
-command, so decline any framework Netlify offers to detect.
+sets the publish directory, the build command and the security headers — there
+is still no framework to detect, so decline if Netlify offers.
 
-Two things to update after the first deploy:
+The build command only re-runs `build/prerender.mjs`, so that a deploy picks up
+catalogue changes. It is deliberately written so it cannot fail a deploy: if
+Supabase is unreachable the committed HTML ships as it stands. Dragging the
+folder onto Netlify Drop skips the step entirely and still gives you a complete
+site — just one whose public pages show the catalogue as of the last time
+someone ran `npm run generate`.
+
+Three things to update after the first deploy:
+
+- Set **`WHA_SITE_URL`** in `netlify.toml` (and as an Edge Function secret) to
+  the real domain. Canonical URLs, `og:` tags and `sitemap.xml` are absolute
+  and are baked in at generate time, so until you do they point at
+  `https://wha.co.za`.
 
 - In `netlify.toml`, replace `*.supabase.co` in the `Content-Security-Policy`
   with your own project host if you want to tighten it.
@@ -109,7 +142,10 @@ skipped rather than sent, so you can go live and wire up mail afterwards.
       shows them (`site/assets/js/config.js`) and the invoice PDF prints them
       (Edge Function secrets `WHA_VAT_NUMBER`, `WHA_REG_NUMBER`,
       `WHA_BANK_*` — see `supabase/functions/_shared/wha.ts`).
-- [ ] Set `WHA_SITE_URL` to the real domain. Certificate QR codes embed it.
+- [ ] Set `WHA_SITE_URL` to the real domain, in **both** places: the Edge
+      Function secrets (certificate QR codes embed it) and `netlify.toml`
+      (canonical URLs, `og:` tags and `sitemap.xml` are baked in at generate
+      time). Then re-run `npm run generate` and commit.
 - [ ] Set `RESEND_API_KEY` and `MAIL_FROM`, and verify the sending domain.
 - [ ] Decide whether **Authentication → Email → Confirm email** is on. With it
       on, new accounts must click a link before they can sign in; the register
@@ -190,6 +226,70 @@ change to what's kept.
 
 ---
 
+## Generated files
+
+Most of `site/` is hand-written and stays that way. A few regions of a few
+files are produced by the two scripts in `build/`, each marked in the HTML with
+a comment saying so. Both rewrite committed files in place — there is no output
+directory, and `site/` remains the finished website either way.
+
+```bash
+npm run generate
+```
+
+```bash
+npm run check
+```
+
+`check` re-derives everything and fails if what is committed differs. Worth
+running in CI; it is the guard against someone hand-editing generated markup
+and losing it on the next run.
+
+### `build/preloads.mjs` — resource hints
+
+Rewrites the `<!-- resource hints -->` block in every page's `<head>`: a
+`preconnect` to Supabase, and a `modulepreload` for each module that page's
+graph pulls in.
+
+Without it the browser discovers those modules four levels deep — it fetches a
+page module to learn it needs `shell.js`, parses that to learn it needs
+`session.js`, and so on — so a page's dozen modules arrive in four serial
+waves. Naming them up front collapses that to one, which is also what makes the
+`no-cache` policy on `/assets/js/*` affordable (see `netlify.toml`).
+
+**Run it after changing what a page module imports.** Forgetting costs a round
+trip, never correctness: a missing hint is a module discovered the slow way, a
+stale one is a module fetched slightly early and then used anyway.
+
+### `build/prerender.mjs` — the public pages
+
+Fills in the content of the landing page, the catalogue, and one file per
+published programme, plus `sitemap.xml` and `robots.txt`.
+
+The signed-in half of the portal can render itself in the browser and lose
+nothing. The public half cannot: client-rendered, `/programs` ships the words
+"Loading the catalogue…", and every programme shares one URL with one
+hardcoded `<title>`, so a link pasted into WhatsApp or LinkedIn unfurls as
+"Programme — WHA Learning Portal". Unfurlers and crawlers do not run
+JavaScript.
+
+It owns no markup of its own. It imports the same render functions the browser
+runs — `programNodes()` from `pages/program.js`, `publicHeaderNodes()` from
+`shell.js` — and runs them against a DOM in Node, so there is no second copy of
+a template to drift. It queries through `catalog.js` for the same reason, using
+the vendored Supabase build rather than a dependency of its own.
+
+It runs as **anon**, so row level security hands it published programmes only.
+That is deliberate: a draft gets no file, stays out of the sitemap, and remains
+reachable at `/programs/program.html?slug=…` for the WHA staff who can see it.
+Unpublish a programme and the next run deletes its file.
+
+**Run it after changing the catalogue** — or let the Netlify deploy do it. The
+pages still fetch and re-render in the browser, so a stale generated copy is a
+stale first paint, never stale data.
+
+---
+
 ## Security
 
 The browser holds an anon key and can issue any query it likes. What stops it
@@ -258,6 +358,10 @@ site/
   assets/css/             tokens, base, layout, components, learn
   assets/js/              one module per page under pages/, shared modules above
   assets/vendor/          the Supabase library, vendored
+  sitemap.xml  robots.txt      generated
+build/
+  preloads.mjs            rewrites the resource hints in every <head>
+  prerender.mjs           fills in the public pages, sitemap and robots
 supabase/
   migrations/             schema, RLS, functions, storage
   functions/              send-mail, invoice-pdf, certificate-pdf

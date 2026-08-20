@@ -73,38 +73,17 @@ function courseCard(course, index) {
     ])));
 }
 
-export async function init() {
-  autoChrome();
+/* --- Render ---------------------------------------------------------------
+ *
+ * Pure — see the note in home.js. build/prerender.mjs calls programNodes() at
+ * generate time to write one static file per published programme, which is
+ * what gives each of them a real URL, a real <title> and a link preview.
+ */
 
-  const slug = param("slug");
-  if (!slug) {
-    mount("#app", emptyState({
-      iconName: "search",
-      title: "No programme specified",
-      action: buttonLink("Browse the catalogue", "/programs/index.html"),
-    }));
-    return;
-  }
-
-  const program = await getProgramBySlug(slug);
-  if (!program) {
-    // RLS returns nothing for an unpublished programme, so "not found" and
-    // "not published" look the same from here — which is the intent.
-    mount("#app", emptyState({
-      iconName: "search",
-      title: "That programme isn't available",
-      description: "It may have been withdrawn, or the link may be out of date.",
-      action: buttonLink("Browse the catalogue", "/programs/index.html"),
-    }));
-    return;
-  }
-
-  setTitle(program.title);
-  document.querySelector('meta[name="description"]')?.setAttribute("content", program.summary);
-
+export function programNodes(program) {
   const assessmentCount = program.courses.filter((c) => c.quiz).length;
 
-  mount("#app",
+  return [
     el("section", { class: "section--band" },
       el("div", { class: "shell grid grid--detail section" }, [
         el("div", {}, [
@@ -149,5 +128,57 @@ export async function init() {
         `${program.courseCount} courses, each ending in an assessment you must pass to complete the programme.`),
       el("ol", { class: "stack mt-6", style: { maxWidth: "48rem" } },
         program.courses.map(courseCard)),
-    ]));
+    ]),
+  ];
+}
+
+/**
+ * Which programme this page is about.
+ *
+ * Two URL shapes reach this module. `/programs/program.html?slug=x` is the
+ * original, and still the only way to view an unpublished programme — RLS
+ * hands drafts to WHA staff, and the generator writes no file for one.
+ * `/programs/x.html` is a generated page, which carries the slug in its path
+ * instead. Reading it from `location` rather than from the markup means this
+ * works identically on a hard load and on a client-side navigation, where
+ * router.js swaps #app's children and would not carry a data attribute across.
+ */
+function currentSlug() {
+  const fromQuery = param("slug");
+  if (fromQuery) return fromQuery;
+  const match = location.pathname.match(/\/programs\/([^/]+?)(?:\.html)?$/);
+  if (!match) return null;
+  return match[1] === "index" || match[1] === "program" ? null : match[1];
+}
+
+export async function init() {
+  autoChrome();
+
+  const slug = currentSlug();
+  if (!slug) {
+    mount("#app", emptyState({
+      iconName: "search",
+      title: "No programme specified",
+      action: buttonLink("Browse the catalogue", "/programs/index.html"),
+    }));
+    return;
+  }
+
+  const program = await getProgramBySlug(slug);
+  if (!program) {
+    // RLS returns nothing for an unpublished programme, so "not found" and
+    // "not published" look the same from here — which is the intent.
+    mount("#app", emptyState({
+      iconName: "search",
+      title: "That programme isn't available",
+      description: "It may have been withdrawn, or the link may be out of date.",
+      action: buttonLink("Browse the catalogue", "/programs/index.html"),
+    }));
+    return;
+  }
+
+  setTitle(program.title);
+  document.querySelector('meta[name="description"]')?.setAttribute("content", program.summary);
+
+  mount("#app", programNodes(program));
 }

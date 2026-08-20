@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wha.co.za/sitemap.xml

@@ -76,4 +76,12 @@
   --page-max: 80rem;   /* the max-w-7xl the Next.js pages used */
   --prose-max: 68ch;
   --header-h: 4rem;
+
+  /* The signed-in header's second row of tabs, which below the .app-nav
+     breakpoint sits under the bar. Only used to reserve its space before
+     shell.js has rendered anything — see #site-header in layout.css.
+     0.875rem text at line-height 1.5, plus the nav link's 0.5rem padding,
+     the row's own 0.375rem and its 1px top rule. Measured, not derived — if
+     any of those change, re-measure rather than recompute. */
+  --header-stacked-h: 3.1125rem;
 }

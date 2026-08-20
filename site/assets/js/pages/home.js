@@ -48,19 +48,29 @@ const steps = [
   },
 ];
 
-export async function init() {
-  publicChrome();
+/* --- Render ---------------------------------------------------------------
+ *
+ * These three are pure: given their inputs they return nodes, and they read
+ * neither the session nor the network. build/prerender.mjs calls them at
+ * generate time to bake this page's content into index.html, so that a visitor
+ * (and a crawler, and a link unfurler) gets the page without waiting on
+ * JavaScript. init() below calls the same three in the browser, which is what
+ * keeps the generated copy and the live one from drifting apart.
+ */
 
-  mount("#trust", trust.map((item) =>
+export function trustNodes() {
+  return trust.map((item) =>
     el("li", {}, [
       icon(item.iconName, 20),
       el("div", {}, [
         el("strong", {}, item.title),
         el("span", {}, item.body),
       ]),
-    ])));
+    ]));
+}
 
-  mount("#steps", steps.map((step, index) =>
+export function stepsNodes() {
+  return steps.map((step, index) =>
     el("li", { class: "step" }, [
       el("div", { class: "step__head" }, [
         el("span", { class: "step__num tabular" }, String(index + 1)),
@@ -68,17 +78,29 @@ export async function init() {
       ]),
       el("h3", {}, step.title),
       el("p", {}, step.body),
-    ])));
+    ]));
+}
+
+export function catalogueNodes(programs) {
+  return programs.length
+    ? el("div", { class: "grid grid--cards" }, programs.map(programCard))
+    : el("p", { class: "empty--dashed", style: { padding: "2.5rem 1.25rem", textAlign: "center" } },
+        "The catalogue is being prepared. Please check back shortly.");
+}
+
+/** How many programmes the landing page previews. The generator matches it. */
+export const PREVIEW_LIMIT = 6;
+
+export async function init() {
+  publicChrome();
+
+  mount("#trust", trustNodes());
+  mount("#steps", stepsNodes());
 
   // Only the catalogue needs the database; everything above renders instantly
   // from the HTML.
   try {
-    const programs = await listPrograms(6);
-    mount("#catalogue",
-      programs.length
-        ? el("div", { class: "grid grid--cards" }, programs.map(programCard))
-        : el("p", { class: "empty--dashed", style: { padding: "2.5rem 1.25rem", textAlign: "center" } },
-            "The catalogue is being prepared. Please check back shortly."));
+    mount("#catalogue", catalogueNodes(await listPrograms(PREVIEW_LIMIT)));
   } catch (error) {
     console.error(error);
     mount("#catalogue", emptyState({

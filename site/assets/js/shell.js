@@ -196,29 +196,44 @@ function userMenu(user) {
  * also has a tab for goes through autoChrome() instead, so the app header
  * follows them there.
  */
+/**
+ * The public header's contents, as nodes.
+ *
+ * Pure on purpose: no session read, no DOM lookup, no analytics. Everything
+ * that decides how the header *looks* lives here; everything that makes it
+ * *happen* lives in renderPublicHeader below. That split is what lets
+ * build/prerender.mjs draw this exact header at generate time from Node —
+ * rather than keeping a second copy of the markup that would quietly drift
+ * away from this one.
+ */
+export function publicHeaderNodes(user = null) {
+  return el("div", { class: "shell site-header__bar" }, [
+    logoLink({ href: "/", width: 140 }),
+    el("nav", { class: "site-nav", "aria-label": "Main" }, [
+      el("a", { href: "/index.html", class: "nav-link" }, "Home"),
+      el("a", { href: "/programs/index.html", class: "nav-link" }, "Catalogue"),
+      el("a", { href: "/verify/index.html", class: "nav-link" }, "Verify"),
+      ...(user
+        ? [buttonLink(homeLabel(user.role), homeFor(user.role), { size: "sm" })]
+        : [
+            el("a", { href: "/login.html", class: "nav-link" }, "Sign in"),
+            buttonLink("Create account", "/register.html", { size: "sm" }),
+          ]),
+    ]),
+  ]);
+}
+
+/** The class shell.js puts on the host. The generator writes it into the HTML. */
+export const PUBLIC_HEADER_CLASS = "site-header";
+
 export async function renderPublicHeader(target = "#site-header") {
   const host = document.querySelector(target);
   if (!host) return;
 
   track();
-  const user = await getUser();
-  host.className = "site-header";
-  host.replaceChildren(
-    el("div", { class: "shell site-header__bar" }, [
-      logoLink({ href: "/", width: 140 }),
-      el("nav", { class: "site-nav", "aria-label": "Main" }, [
-        el("a", { href: "/index.html", class: "nav-link" }, "Home"),
-        el("a", { href: "/programs/index.html", class: "nav-link" }, "Catalogue"),
-        el("a", { href: "/verify/index.html", class: "nav-link" }, "Verify"),
-        ...(user
-          ? [buttonLink(homeLabel(user.role), homeFor(user.role), { size: "sm" })]
-          : [
-              el("a", { href: "/login.html", class: "nav-link" }, "Sign in"),
-              buttonLink("Create account", "/register.html", { size: "sm" }),
-            ]),
-      ]),
-    ]),
-  );
+  const user = await getUser({ allowStale: true });
+  host.className = PUBLIC_HEADER_CLASS;
+  host.replaceChildren(publicHeaderNodes(user));
 }
 
 /**
@@ -268,12 +283,11 @@ export async function renderAppHeader(user, target = "#site-header") {
  * their own account. Signed in, that slot points back at their own area
  * instead.
  */
-export function renderFooter(user = null, target = "#site-footer") {
-  const host = document.querySelector(target);
-  if (!host) return;
+export const FOOTER_CLASS = "site-footer";
 
-  host.className = "site-footer";
-  host.replaceChildren(
+/** The footer's contents, as nodes. Pure, for the same reason as the header. */
+export function footerNodes(user = null) {
+  return [
     el("div", { class: "shell site-footer__cols" }, [
       el("div", {}, [
         logo({ width: 150 }),
@@ -303,15 +317,44 @@ export function renderFooter(user = null, target = "#site-footer") {
     el("div", { class: "site-footer__legal" },
       el("div", { class: "shell" },
         el("p", {}, `© ${new Date().getFullYear()} ${company.legalName}. All rights reserved.`))),
-  );
+  ];
 }
+
+export function renderFooter(user = null, target = "#site-footer") {
+  const host = document.querySelector(target);
+  if (!host) return;
+
+  host.className = FOOTER_CLASS;
+  host.replaceChildren(...footerNodes(user));
+}
+
+/* --- Correcting a stale header -------------------------------------------- */
+
+/**
+ * Which chrome this page drew, so a background profile refresh can redraw the
+ * same one. The three entry points below take the profile from session.js's
+ * stale-while-revalidate path, which means the first paint may be built from a
+ * cached copy — the right trade for a header, but only because it corrects
+ * itself when the real read lands.
+ *
+ * Nothing here re-reads the network: session.js stores the new profile before
+ * it dispatches, so the getUser() calls inside these are in-memory.
+ */
+let lastChrome = null;
+
+window.addEventListener("wha:profilechange", (event) => {
+  if (lastChrome === "app") appChrome(event.detail);
+  else if (lastChrome === "auto") autoChrome();
+  else if (lastChrome === "public") publicChrome();
+});
 
 /**
  * Chrome for a marketing page: public header + footer.
  * Returns the signed-in user, if there is one.
  */
 export async function publicChrome() {
-  const user = await getUser();
+  lastChrome = "public";
+  const user = await getUser({ allowStale: true });
   renderFooter(user);
   await renderPublicHeader();
   return user;
@@ -322,6 +365,7 @@ export async function publicChrome() {
  * is redirected before anything renders.
  */
 export async function appChrome(user) {
+  lastChrome = "app";
   renderFooter(user);
   await renderAppHeader(user);
   return user;
@@ -341,7 +385,8 @@ export async function appChrome(user) {
  * so callers swapping between them need no other change.
  */
 export async function autoChrome() {
-  const user = await getUser();
+  lastChrome = "auto";
+  const user = await getUser({ allowStale: true });
   renderFooter(user);
   if (user) await renderAppHeader(user);
   else await renderPublicHeader();

@@ -1,17 +1,33 @@
 # Netlify deployment for the WHA Learning Portal.
 #
-# There is no build step: `site/` is the finished website. Netlify serves the
-# folder exactly as it is on disk, which is also why you can open any page
-# locally without a server.
+# `site/` is the finished website. Netlify serves the folder as it is on disk,
+# which is also why you can open any page locally without a server, and why
+# there is still no framework here to detect — decline if Netlify offers.
+#
+# The command below is not a build in the usual sense: nothing is compiled and
+# nothing is emitted into a separate output directory. build/prerender.mjs
+# rewrites a few of the committed public pages in place, filling in the
+# catalogue so that the landing page, /programs and each programme carry their
+# content in the HTML rather than fetching it — which is what search engines
+# and link previews read. Those files are committed, so a deploy that skips
+# this step still ships a complete, working site; running it here only means a
+# deploy picks up catalogue changes made since the last time someone ran it.
+#
+# Hence `|| true`. If Supabase is unreachable, or npm has a bad day, the
+# generator does nothing and the committed HTML ships exactly as it stands.
+# Nothing about publishing this site should depend on a third party being up.
 
 [build]
   publish = "site"
-  # No command. If Netlify offers to auto-detect a framework, decline it.
-  command = ""
+  command = "npm ci && node build/prerender.mjs || true"
 
 [build.environment]
-  # Nothing to install.
   NETLIFY_USE_YARN = "false"
+  # Canonical URLs, og:url and sitemap.xml have to be absolute, and there is no
+  # `location.origin` at generate time. Matches the WHA_SITE_URL secret the Edge
+  # Functions read (supabase/functions/_shared/wha.ts) — set both to the real
+  # domain, or generated pages will point at wha.co.za by default.
+  WHA_SITE_URL = "https://wha.co.za"
 
 # Pretty URLs: /programs serves /programs/index.html, /login serves /login.html.
 [[redirects]]

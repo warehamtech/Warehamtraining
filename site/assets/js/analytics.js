@@ -22,8 +22,21 @@ function sessionId() {
   return id;
 }
 
+/**
+ * The last path counted. The header renderers call track(), and shell.js now
+ * redraws the header when a background profile refresh finds something
+ * changed — without this, that redraw would book a second view of a page
+ * nobody navigated to twice. Storing only the most recent path means a real
+ * A → B → A still counts two views of A, since B clears it in between.
+ */
+let lastTracked = null;
+
 /** Record a page view. Never throws — must not be able to block or break render. */
 export function track() {
+  const path = location.pathname + location.search;
+  if (path === lastTracked) return;
+  lastTracked = path;
+
   sb.from("page_views")
     .insert({
       path: location.pathname,
