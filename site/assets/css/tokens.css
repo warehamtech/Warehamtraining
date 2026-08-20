@@ -84,4 +84,14 @@
      the row's own 0.375rem and its 1px top rule. Measured, not derived — if
      any of those change, re-measure rather than recompute. */
   --header-stacked-h: 3.1125rem;
+
+  /* What the active-tab indicator (.nav-indicator, layout.css) fills with,
+     and what colour its text needs to stay legible against that fill.
+     Defaults to the ordinary page background, which is why the indicator
+     reads as "the same paper as the page" almost everywhere without any
+     page needing to say so. A page whose top section is a different colour
+     overrides these near its own section's rule instead of here — see
+     .hero in layout.css for the pattern to copy. */
+  --page-top-bg: var(--surface);
+  --page-top-fg: var(--brand-700);
 }

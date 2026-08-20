@@ -33,6 +33,13 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /* Reserves the vertical scrollbar's own width permanently, whether or not a
+     given page needs to scroll. Pages vary a lot in height across the site,
+     and without this, navigating from a tall page to a short one (or back)
+     toggles the scrollbar and shifts the entire layout sideways by its width
+     right as the page changes — everything the router.js navigation and the
+     nav-indicator animation just moved lands, then jumps. */
+  scrollbar-gutter: stable;
 }
 
 body {

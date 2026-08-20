@@ -290,10 +290,20 @@ async function main() {
   // The chrome is generated signed-out. publicChrome() still runs in the
   // browser and redraws it, which is a no-op for an anonymous reader and an
   // upgrade to the app header for a signed-in one.
-  const headerHtml = html(shell.publicHeaderNodes(null));
+  //
+  // The footer doesn't depend on path, so it's built once. The header does:
+  // publicHeaderNodes() now marks Home/Catalogue/Verify with aria-current
+  // (see shell.js), and that folder-tab active state is a real, visible
+  // shape, not a subtle badge — generating one header and reusing it
+  // verbatim across every output file would put "Home" active on the
+  // catalogue and on every programme page too, wrongly. So `withChrome` sets
+  // globalThis.location to the page's own path immediately before building
+  // that page's header, and builds a fresh one per call rather than once.
   const footerHtml = html(shell.footerNodes(null));
 
-  const withChrome = (source) => {
+  const withChrome = (source, path) => {
+    globalThis.location = new URL(SITE_URL + path);
+    const headerHtml = html(shell.publicHeaderNodes(null));
     let out = replaceInner(source, "site-header", headerHtml);
     out = setAttribute(out, "site-header", "class", shell.PUBLIC_HEADER_CLASS);
     out = replaceInner(out, "site-footer", footerHtml);
@@ -303,9 +313,11 @@ async function main() {
   /** rel path -> contents. Written (or compared) all at once at the end. */
   const output = new Map();
 
-  /* Landing page. */
+  /* Landing page. Path "/", not "/index.html": that's the canonical way this
+     page is actually reached (the logo links there, the sitemap lists it as
+     "/"), and it's what shell.js's navLink() treats as Home's exact match. */
   {
-    let out = withChrome(read("index.html"));
+    let out = withChrome(read("index.html"), "/");
     out = replaceInner(out, "trust", html(homePage.trustNodes()));
     out = replaceInner(out, "steps", html(homePage.stepsNodes()));
     out = replaceInner(out, "catalogue",
@@ -321,7 +333,7 @@ async function main() {
 
   /* Catalogue. */
   {
-    let out = withChrome(read("programs/index.html"));
+    let out = withChrome(read("programs/index.html"), "/programs/index.html");
     out = replaceInner(out, "catalogue", html(programsPage.catalogueNodes(programs)));
     out = replaceRegion(out, META_START, META_END, socialBlock({
       path: "/programs/index.html",
@@ -347,7 +359,7 @@ async function main() {
       || [program.title, program.standard].filter(Boolean).join(" · ")
         + " — online compliance training from Wareham & Associates.";
 
-    let out = withChrome(template);
+    let out = withChrome(template, path);
     out = replaceInner(out, "app", html(programPage.programNodes(program)));
     out = out.replace(
       /<title>[^<]*<\/title>/,

@@ -90,7 +90,13 @@ async function navigate(url, { push = true } = {}) {
   // and would otherwise see the previous page's URL.
   if (push) {
     history.pushState({}, "", url);
-    window.scrollTo(0, 0);
+    // Explicitly instant, not the bare two-argument form: html has
+    // scroll-behavior: smooth (for in-page anchor jumps), which would
+    // otherwise animate this too — and if the new page is shorter than the
+    // old scroll position, the browser already clamps that instantly on its
+    // own the moment the content above is swapped in, so an animated scroll
+    // on top of that reads as two separate motions rather than one.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
 
   await activate(doc);

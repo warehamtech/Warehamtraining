@@ -135,11 +135,85 @@ main {
   color: var(--ink);
 }
 
-/* The current section, matched on pathname by shell.js. */
+/* The current section, matched on pathname by shell.js. The coloured "you are
+ * here" shape itself is .nav-indicator below, not this element — this only
+ * needs to sit above it (z-index) and pick up the active text colour.
+ * --page-top-fg, not a fixed colour: it has to stay legible against
+ * whatever .nav-indicator is actually filled with — see that rule and
+ * --page-top-bg/--page-top-fg in tokens.css. */
 .nav-link[aria-current="page"] {
-  background-color: var(--brand-50);
-  color: var(--brand-700);
+  position: relative;
+  z-index: 1;
+  color: var(--page-top-fg);
 }
+
+/* The active tab already has its own legible fill (.nav-indicator, coloured
+ * to match --page-top-fg). Without this, :hover's fixed light --surface
+ * background paints over it while the text stays --page-top-fg, which is
+ * white on the hero page — white on near-white. */
+.nav-link[aria-current="page"]:hover {
+  background-color: transparent;
+}
+
+/*
+ * The active tab, drawn as a folder tab rising out of the page below it.
+ *
+ * One element does two jobs: its SHAPE is the "this tab is the same paper as
+ * the content below" illusion, and animating its position/size between
+ * renders is the "moving to that tab" feeling — see positionIndicator() in
+ * shell.js, which decides its top/left/width inline (there is exactly one of
+ * these per header, a persistent element moved rather than recreated — see
+ * shell.js for why that specifically matters here — and it moves to
+ * whichever row currently has the active tab, so it can't be pinned to one
+ * row's own position in CSS alone).
+ *
+ * A direct child of #site-header (position: sticky, already a valid
+ * positioning context) — deliberately NOT a child of .site-nav /
+ * .app-nav--inline / .app-nav--stacked, even though visually it belongs to
+ * whichever of those is showing the active tab. Both .app-nav--inline and
+ * .app-nav--stacked carry .scroll-x for a real, load-bearing reason (a
+ * learner's five tabs need to scroll rather than break the layout on a
+ * narrow-but-still-desktop viewport — see the comment on that breakpoint
+ * below), and per the CSS overflow spec a non-visible overflow-x forces
+ * overflow-y to auto too, on both — confirmed empirically (clientHeight <
+ * scrollHeight on .app-nav--inline with an indicator that reached even 1px
+ * past its own box; a bare `overflow-y: visible` override on top of that
+ * gets silently put back to auto by the browser, so there is no CSS-only way
+ * around it either). Anything asked to reach past its own edge would be
+ * clipped there — invisibly, which is worse than not attempting the effect
+ * at all. #site-header itself has no such restriction, so hosting it there
+ * and computing its position in JS against whichever row is actually active
+ * sidesteps the clipping entirely rather than fighting it.
+ *
+ * `bottom: -2px` is what reaches into the header's own border-bottom: an
+ * absolutely positioned child's `bottom` offset is measured from the inside
+ * of the border, not the outside, so 0 would land just short of the line
+ * rather than on it, and a declared 1px border can render fractionally
+ * (~0.8px measured on a real HiDPI Windows display) — 2px covers both with
+ * margin to spare. The overshoot is invisible either way: it just paints a
+ * sliver more of a colour the page underneath already is.
+ *
+ * The fill is --page-top-bg (tokens.css), not a fixed --surface: --surface
+ * is only the DEFAULT of that token, right for almost every page because
+ * that's what body is coloured almost everywhere. A page whose top section
+ * is a different colour — see .hero above, the one page that currently
+ * needs this — overrides the token near that section's own rule instead of
+ * here, so the indicator itself never needs to know about specific pages.
+ */
+.nav-indicator {
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  top: 0;
+  width: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background-color: var(--page-top-bg);
+  transition: transform 220ms var(--ease-out-soft), width 220ms var(--ease-out-soft),
+    top 220ms var(--ease-out-soft), background-color 220ms var(--ease-out-soft);
+  pointer-events: none;
+}
+
+.nav-indicator[hidden] { display: none; }
 
 /* App header: nav sits inline on desktop, on its own scrolling row on mobile. */
 .app-nav--inline {
@@ -329,6 +403,19 @@ main {
   position: relative;
   overflow: hidden;
   background-color: var(--brand-800);
+}
+
+/* The Home tab's folder-tab indicator (.nav-indicator) fills with
+ * --page-top-bg, which defaults to --surface — right almost everywhere,
+ * wrong here, since the hero is the first thing under #app on the landing
+ * page and it's dark. :has() reacts the moment .hero is actually in the
+ * DOM, so this stays correct however the page's content ends up getting
+ * there. Any future page whose top section isn't --surface needs one rule
+ * exactly like this next to it — nothing about the indicator itself has to
+ * change to support it. */
+body:has(.hero) {
+  --page-top-bg: var(--brand-800);
+  --page-top-fg: var(--white);
 }
 
 .hero::before {
