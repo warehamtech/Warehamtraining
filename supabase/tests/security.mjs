@@ -27,6 +27,21 @@ const ok = (name, cond, extra = "") => {
   else { fail++; console.log(`  FAIL  ${name}${extra ? ` — ${extra}` : ""}`); }
 };
 
+/**
+ * A submit_quiz_attempt() answers payload for multiple-choice questions:
+ * { "<question id>": { "choice_id": "<choice id>" }, … } — the shape
+ * 0008_quiz_engine_v2.sql's submit_quiz_attempt() expects and quiz.js sends
+ * (assets/js/pages/quiz.js: `answers[question.id] = { choice_id: choice.id }`).
+ * Wrapped here so every call site stays in step with that shape by
+ * construction, rather than each spelling out the object literal by hand.
+ */
+const mcAnswers = (pairs) =>
+  JSON.stringify(
+    Object.fromEntries(
+      Object.entries(pairs).map(([questionId, choiceId]) => [questionId, { choice_id: choiceId }]),
+    ),
+  );
+
 // Run a block as a given role + user id, the way PostgREST would.
 async function as(role, uid, fn) {
   await c.query("begin");
@@ -225,7 +240,7 @@ console.log("\n— Assessment —");
 {
   const r = await as("authenticated", buyer, async () => (await c.query(
     `select public.submit_quiz_attempt($1,$2,$3::jsonb) as r`,
-    [enrollment, quiz, JSON.stringify({ [q1]: right1, [q2]: right2 })])).rows[0].r);
+    [enrollment, quiz, mcAnswers({ [q1]: right1, [q2]: right2 })])).rows[0].r);
   ok("the assessment is locked until the lessons are done", r.ok === false, JSON.stringify(r));
 }
 await as("authenticated", buyer, () => c.query(
@@ -248,7 +263,7 @@ ok("the seat holder can tick a lesson off",
 {
   const r = await as("authenticated", buyer, async () => (await c.query(
     `select public.submit_quiz_attempt($1,$2,$3::jsonb) as r`,
-    [enrollment, quiz, JSON.stringify({ [q1]: wrong1, [q2]: right2 })])).rows[0].r);
+    [enrollment, quiz, mcAnswers({ [q1]: wrong1, [q2]: right2 })])).rows[0].r);
   ok("a half-right attempt scores 50 and fails",
     r.ok === true && r.score_percent === 50 && r.passed === false, JSON.stringify(r));
   ok("attempts_left is reported as 2", r.attempts_left === 2, JSON.stringify(r));
@@ -256,13 +271,13 @@ ok("the seat holder can tick a lesson off",
 {
   const r = await as("authenticated", buyer, async () => (await c.query(
     `select public.submit_quiz_attempt($1,$2,$3::jsonb) as r`,
-    [enrollment, quiz, JSON.stringify({ [q1]: right1 })])).rows[0].r);
+    [enrollment, quiz, mcAnswers({ [q1]: right1 })])).rows[0].r);
   ok("an incomplete submission is refused", r.ok === false, JSON.stringify(r));
 }
 {
   const r = await as("authenticated", buyer, async () => (await c.query(
     `select public.submit_quiz_attempt($1,$2,$3::jsonb) as r`,
-    [enrollment, quiz, JSON.stringify({ [q1]: right1, [q2]: right1 })])).rows[0].r);
+    [enrollment, quiz, mcAnswers({ [q1]: right1, [q2]: right1 })])).rows[0].r);
   ok("a choice from another question is refused", r.ok === false, JSON.stringify(r));
 }
 
@@ -275,7 +290,7 @@ console.log("\n— Certificate —");
 {
   const r = await as("authenticated", buyer, async () => (await c.query(
     `select public.submit_quiz_attempt($1,$2,$3::jsonb) as r`,
-    [enrollment, quiz, JSON.stringify({ [q1]: right1, [q2]: right2 })])).rows[0].r);
+    [enrollment, quiz, mcAnswers({ [q1]: right1, [q2]: right2 })])).rows[0].r);
   ok("a full-marks attempt passes", r.ok === true && r.score_percent === 100 && r.passed,
     JSON.stringify(r));
 }

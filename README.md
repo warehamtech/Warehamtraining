@@ -323,24 +323,57 @@ rules as the underlying rows.
 
 ### Checking it
 
+`supabase/tests/run.mjs` rebuilds a database from the migrations and drives a
+full purchase → activate → learn → assess → certify flow as the real roles,
+probing each boundary above.
+
+> **This destroys whatever database you point it at.** Its first statements are
+> `drop schema public cascade`, followed by dropping the `auth` and `storage`
+> schemas and the `anon`, `authenticated` and `service_role` roles — which
+> `_stubs.sql` then replaces with stand-ins. Aimed at a Supabase project it
+> would take the catalogue, the learners, the orders and the certificates with
+> it, and leave the project itself broken. It wants a **local, throwaway
+> Postgres and nothing else** — not production, and not a spare Supabase
+> project either.
+>
+> It is also a Node script, not SQL. It cannot be pasted into the Supabase SQL
+> Editor, and you would not want it to run there if it could.
+
+The disposable Postgres, using [Docker](https://docs.docker.com/get-started/get-docker/).
+`--rm` means the container and everything in it is thrown away on stop, which
+is the property that makes this safe:
+
+```bash
+npm run db:start
+```
+
+Give it a few seconds the first time while Postgres initialises, then install
+the test's own dependency and run it:
+
 ```bash
 cd supabase/tests && npm install
 ```
 
 ```bash
-node run.mjs
+npm test
 ```
 
-That rebuilds a throwaway database from the migrations and drives a full
-purchase → activate → learn → assess → certify flow as the real roles, probing
-each boundary above. It needs a Postgres to talk to — any local Postgres 14+
-works, or run `supabase start` if you have the
-[Supabase CLI](https://supabase.com/docs/guides/cli) installed. Point the tests
-at whichever one you use:
+```bash
+npm run db:stop
+```
+
+The defaults in `run.mjs` (`127.0.0.1:5455`, user and password `postgres`)
+match what `npm run db:start` creates, so nothing needs configuring. For any
+other Postgres 14+, point it there instead — and re-read the warning above
+before you do:
 
 ```bash
 WHA_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres node supabase/tests/run.mjs
 ```
+
+The auth and storage schemas are stubs, so this exercises the schema, the
+policies and the RPCs rather than Supabase's own auth implementation. That part
+only gets tested against a real project.
 
 ---
 

@@ -28,6 +28,38 @@ const connection =
     password: "postgres", database: "postgres",
   };
 
+/**
+ * Refuse to run against anything that is not plainly a local, disposable
+ * database.
+ *
+ * What follows drops the public, auth and storage schemas and the anon,
+ * authenticated and service_role roles. Against a Supabase project that is not
+ * a failed test run, it is the catalogue, the learners, the orders and the
+ * certificates gone, and the project left broken — and WHA_TEST_DATABASE_URL is
+ * one paste away from making that the target. The blast radius is large enough
+ * and the legitimate use narrow enough that guessing wrong should not be
+ * possible.
+ */
+function assertDisposable(target) {
+  const host = typeof target === "string" ? new URL(target).hostname : target.host;
+  const local = ["localhost", "127.0.0.1", "::1", "host.docker.internal"];
+
+  if (!local.includes(host)) {
+    console.error(`Refusing to run: ${host} is not a local database.`);
+    console.error("");
+    console.error("This script rebuilds a database from scratch — it drops the public,");
+    console.error("auth and storage schemas before it does anything else. It is only ever");
+    console.error("meant to point at a throwaway Postgres on this machine.");
+    console.error("");
+    console.error("  npm run db:start     a disposable one, in Docker");
+    console.error("  npm test             run these tests against it");
+    console.error("  npm run db:stop      throw it away");
+    process.exit(1);
+  }
+}
+
+assertDisposable(connection);
+
 const client = new pg.Client(connection);
 await client.connect();
 

@@ -6,7 +6,10 @@
   "scripts": {
     "serve": "node serve.mjs",
     "generate": "node build/preloads.mjs && node build/prerender.mjs",
-    "check": "node build/preloads.mjs --check && node build/prerender.mjs --check"
+    "check": "node build/preloads.mjs --check && node build/prerender.mjs --check",
+    "db:start": "docker run --rm -d --name wha-test-db -e POSTGRES_PASSWORD=postgres -p 5455:5432 postgres:16",
+    "db:stop": "docker stop wha-test-db",
+    "test": "node supabase/tests/run.mjs"
   },
   "devDependencies": {
     "linkedom": "^0.18.5"
