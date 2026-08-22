@@ -29,52 +29,154 @@
   # domain, or generated pages will point at wha.co.za by default.
   WHA_SITE_URL = "https://wha.co.za"
 
-# Pretty URLs: /programs serves /programs/index.html, /login serves /login.html.
+# The site is a single HTML shell, site/app.html, with client-side routing
+# (site/assets/js/routes.js) for everything. Three groups of routes:
+#
+#  1. A handful of paths (/, /programs/index.html, /programs/{slug}.html,
+#     /verify/index.html) have real SEO/link-preview value, so
+#     build/prerender.mjs still generates real static files at those exact
+#     paths and they are deliberately NOT redirected here — a Netlify Edge
+#     Function (netlify/edge-functions/prerender-for-bots.ts) rewrites a
+#     real visitor to /app.html while leaving a crawler/link-unfurler alone
+#     to see the generated file that already sits at that path. Adding a
+#     redirect rule for any of these paths would shadow that function.
+#  2. /programs/program.html (the staff-only draft-preview template) has no
+#     SEO value but must stay on disk — build/prerender.mjs reads it
+#     directly as the template every generated programme page is spliced
+#     from — so it needs `force = true` to redirect live traffic away from
+#     a file that still physically exists.
+#  3. Everything else collapses unconditionally: no SEO value (already
+#     noindex), so no bot exception needed.
+#
+# Order matters — first match wins, so the old-bookmark redirects and the
+# force exception must precede the wildcards below them.
+
+[[redirects]]
+  from = "/admin/orders.html"
+  to = "/admin/invoices.html"
+  status = 301
+
+[[redirects]]
+  from = "/team/billing.html"
+  to = "/invoices.html"
+  status = 301
+
+[[redirects]]
+  from = "/programs/program.html"
+  to = "/app.html"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/login"
-  to = "/login.html"
+  to = "/app.html"
   status = 200
-
+[[redirects]]
+  from = "/login.html"
+  to = "/app.html"
+  status = 200
 [[redirects]]
   from = "/register"
-  to = "/register.html"
+  to = "/app.html"
   status = 200
-
+[[redirects]]
+  from = "/register.html"
+  to = "/app.html"
+  status = 200
 [[redirects]]
   from = "/dashboard"
-  to = "/dashboard.html"
+  to = "/app.html"
   status = 200
-
+[[redirects]]
+  from = "/dashboard.html"
+  to = "/app.html"
+  status = 200
 [[redirects]]
   from = "/certificates"
-  to = "/certificates.html"
+  to = "/app.html"
   status = 200
-
+[[redirects]]
+  from = "/certificates.html"
+  to = "/app.html"
+  status = 200
 [[redirects]]
   from = "/account"
-  to = "/account.html"
+  to = "/app.html"
   status = 200
-
+[[redirects]]
+  from = "/account.html"
+  to = "/app.html"
+  status = 200
 [[redirects]]
   from = "/checkout"
-  to = "/checkout.html"
+  to = "/app.html"
   status = 200
-
+[[redirects]]
+  from = "/checkout.html"
+  to = "/app.html"
+  status = 200
 [[redirects]]
   from = "/invoices"
-  to = "/invoices.html"
+  to = "/app.html"
   status = 200
-
+[[redirects]]
+  from = "/invoices.html"
+  to = "/app.html"
+  status = 200
 [[redirects]]
   from = "/invite"
-  to = "/invite.html"
+  to = "/app.html"
+  status = 200
+[[redirects]]
+  from = "/invite.html"
+  to = "/app.html"
   status = 200
 
-# Anything genuinely missing gets the styled 404 rather than Netlify's own.
+# Directory-level wildcards for the rest. /verify/* is deliberately absent —
+# /verify/index.html is edge-function-protected (group 1 above) and
+# /verify/certificate.html gets its own explicit rule so a wildcard can't
+# accidentally shadow the former.
+[[redirects]]
+  from = "/admin/*"
+  to = "/app.html"
+  status = 200
+[[redirects]]
+  from = "/learn/*"
+  to = "/app.html"
+  status = 200
+[[redirects]]
+  from = "/team/*"
+  to = "/app.html"
+  status = 200
+[[redirects]]
+  from = "/orders/*"
+  to = "/app.html"
+  status = 200
+[[redirects]]
+  from = "/verify/certificate.html"
+  to = "/app.html"
+  status = 200
+
+# Anything genuinely missing still lands on the shell — router.js resolves
+# an unrecognized path to the styled not-found page — with a real 404
+# status. Files that still exist on disk (the edge-function-protected
+# group) are served directly by Netlify without ever reaching this rule.
 [[redirects]]
   from = "/*"
-  to = "/404.html"
+  to = "/app.html"
   status = 404
+
+[[edge_functions]]
+  path = "/"
+  function = "prerender-for-bots"
+
+[[edge_functions]]
+  path = "/programs/*"
+  function = "prerender-for-bots"
+
+[[edge_functions]]
+  path = "/verify/index.html"
+  function = "prerender-for-bots"
 
 [[headers]]
   for = "/*"

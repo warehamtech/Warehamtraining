@@ -1,4 +1,4 @@
-import { $, el, mount } from "../dom.js";
+import { el, mount } from "../dom.js";
 import { renderPublicHeader, renderFooter } from "../shell.js";
 import { setFieldErrors, setFormMessage, setPending, card, cardBody, buttonLink } from "../ui.js";
 import { icon } from "../icons.js";
@@ -26,11 +26,55 @@ export async function init() {
   }
 
   const next = new URLSearchParams(location.search).get("next");
-  if (next) {
-    $("#login-link").href = `/login.html?next=${encodeURIComponent(next)}`;
-  }
+  const loginHref = next ? `/login.html?next=${encodeURIComponent(next)}` : "/login.html";
 
-  const form = $("#register-form");
+  const form = el("form", { id: "register-form", novalidate: true }, [
+    el("div", { "data-message": "" }),
+    el("div", { class: "field" }, [
+      el("label", { class: "field__label", for: "name" }, ["Full name", el("span", { class: "field__required" }, "*")]),
+      el("input", { class: "control", id: "name", name: "name", required: true, autocomplete: "name" }),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { class: "field__label", for: "email" }, ["Email", el("span", { class: "field__required" }, "*")]),
+      el("input", {
+        class: "control", id: "email", name: "email", type: "email", required: true,
+        autocomplete: "email", autocapitalize: "off", spellcheck: "false",
+      }),
+      el("p", { class: "field__hint" }, "Your invoice and certificate are sent here."),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { class: "field__label", for: "jobTitle" }, "Job title"),
+      el("input", { class: "control", id: "jobTitle", name: "jobTitle", autocomplete: "organization-title" }),
+      el("p", { class: "field__hint" }, "Optional. Printed on your certificate if given."),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { class: "field__label", for: "password" }, ["Password", el("span", { class: "field__required" }, "*")]),
+      el("input", {
+        class: "control", id: "password", name: "password", type: "password",
+        required: true, autocomplete: "new-password", minlength: "8",
+      }),
+      el("p", { class: "field__hint" }, "At least 8 characters."),
+    ]),
+    el("button", { class: "btn btn--primary btn--block", type: "submit" }, "Create account"),
+  ]);
+
+  mount("#app", el("div", { class: "auth-card" }, [
+    el("div", { class: "center" }, [
+      el("a", { href: "/", "aria-label": "Wareham & Associates home" },
+        el("img", {
+          src: "/assets/brand/wha-logo.png", alt: "Wareham & Associates",
+          width: "160", height: "62", style: { width: "160px", height: "auto", margin: "0 auto" },
+        })),
+      el("h1", { class: "display t-2xl mt-6" }, "Create your account"),
+      el("p", { class: "muted t-sm mt-2" },
+        "You will need one to enrol, track your progress and download your certificate."),
+    ]),
+    el("section", { class: "card mt-6" }, el("div", { class: "card__body" }, form)),
+    el("p", { class: "auth-foot" }, [
+      "Already have an account? ",
+      el("a", { class: "link", href: loginHref }, "Sign in"),
+    ]),
+  ]));
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

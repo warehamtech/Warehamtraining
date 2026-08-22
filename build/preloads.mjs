@@ -1,12 +1,16 @@
 /**
- * Regenerate the resource-hint block in every page's <head>.
+ * Regenerate site/app.html's resource-hint block (the shared core every
+ * route needs), the per-route ROUTE_PRELOADS table in routes.js (each
+ * route's own modules, minus that shared core), and the resource-hint
+ * blocks on the handful of pages that are still separate documents for
+ * crawlers/link-unfurlers (see netlify/edge-functions/prerender-for-bots.ts).
  *
  *   node build/preloads.mjs           rewrite the blocks
  *   node build/preloads.mjs --check   fail if any block is out of date
  *
  * This is NOT a build step. `site/` is still the finished website and Netlify
- * still serves it as-is; this only rewrites a marked region of files that are
- * committed, and you run it when a page module's imports change. Forgetting to
+ * still serves it as-is; this only rewrites marked regions of files that are
+ * committed, and you run it when a page module's imports change. Forgetting
  * costs a round trip, never correctness — a missing preload is a module the
  * browser discovers the slow way, and a stale one is a file it fetches slightly
  * early and then uses anyway.
@@ -22,6 +26,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, resolve, relative, sep, join } from "node:path";
+import { ROUTES, matchProgramSlug, NOT_FOUND_ROUTE } from "../site/assets/js/routes.js";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const JS = join(ROOT, "site/assets/js");
@@ -52,17 +57,15 @@ function graph(entry) {
   return [...seen].map((f) => relative(JS, f).split(sep).join("/")).sort();
 }
 
-function block(entry) {
-  const modules = graph(entry);
+function blockFromModules(modules, note) {
   return [
     START,
     "<!--",
     "  The preconnect opens DNS + TLS to Supabase now rather than when the first",
     "  query fires, several hundred ms into the load. `crossorigin` is required:",
     "  without it the browser warms a connection the CORS fetches then decline to",
-    `  reuse. The ${String(modules.length).padStart(2)} modulepreloads are this page's entire module graph,`,
-    "  which the browser would otherwise discover four levels deep, a round trip",
-    "  at a time. Regenerate with: node build/preloads.mjs",
+    `  reuse. ${note}`,
+    "  Regenerate with: node build/preloads.mjs",
     "-->",
     `<link rel="preconnect" href="${SUPABASE_ORIGIN}" crossorigin>`,
     `<link rel="preload" href="/assets/fonts/roboto-latin-variable.woff2" as="font" type="font/woff2" crossorigin>`,
@@ -71,20 +74,106 @@ function block(entry) {
   ].join("\n");
 }
 
-const check = process.argv.includes("--check");
-const files = execSync("git ls-files site/**/*.html site/*.html", { cwd: ROOT, encoding: "utf8" })
-  .trim().split("\n");
+function block(entry) {
+  const modules = graph(entry);
+  return blockFromModules(
+    modules,
+    `The ${String(modules.length).padStart(2)} modulepreloads are this page's entire module graph,\n` +
+      "  which the browser would otherwise discover four levels deep, a round trip\n" +
+      "  at a time.",
+  );
+}
 
+/** "/assets/js/pages/x.js" -> the on-disk path graph() expects. */
+const modulePath = (webPath) => join(JS, webPath.replace(/^\/assets\/js\//, ""));
+
+/** Every module app.html's routes collectively reach. */
+const routeModules = [
+  ...new Set([
+    ...Object.values(ROUTES).map((r) => r.module),
+    matchProgramSlug("/programs/x.html").module,
+    NOT_FOUND_ROUTE.module,
+  ]),
+];
+const routeGraphs = new Map(routeModules.map((m) => [m, graph(modulePath(m))]));
+
+/** The modules every single route needs — these are the only ones worth
+ *  preloading unconditionally in app.html's <head>; anything narrower goes
+ *  in that route's own ROUTE_PRELOADS entry instead. */
+const CORE = [...routeGraphs.values()]
+  .reduce((core, g) => core.filter((m) => g.includes(m)))
+  .sort();
+
+const check = process.argv.includes("--check");
 let written = 0;
 const stale = [];
-const skipped = [];
 
+// site/app.html: the shared core every route needs.
+{
+  const path = join(ROOT, "site/app.html");
+  const src = readFileSync(path, "utf8");
+  const next = blockFromModules(
+    CORE,
+    `The ${String(CORE.length).padStart(2)} modulepreloads are the modules every route needs;\n` +
+      "  each route's own extra modules are preloaded individually at\n" +
+      "  navigation time (site/assets/js/routes.js's ROUTE_PRELOADS).",
+  );
+  const i = src.indexOf(START);
+  const j = src.indexOf(END) + END.length;
+  if (i < 0) throw new Error("site/app.html: resource-hints markers not found");
+  const out = src.slice(0, i) + next + src.slice(j);
+  if (out !== src) {
+    if (check) stale.push("site/app.html");
+    else { writeFileSync(path, out); written++; }
+  }
+}
+
+// routes.js: each route's own modules, minus the shared core.
+{
+  const path = join(ROOT, "site/assets/js/routes.js");
+  const src = readFileSync(path, "utf8");
+  const preloads = {};
+  for (const [webPath, route] of Object.entries(ROUTES)) {
+    const extra = routeGraphs.get(route.module)
+      .filter((m) => !CORE.includes(m))
+      .map((m) => `/assets/js/${m}`);
+    if (extra.length) preloads[webPath] = extra;
+  }
+  const rStart = "// -- route preloads: generated by build/preloads.mjs --";
+  const rEnd = "// -- end route preloads --";
+  const next = [
+    rStart,
+    `export const ROUTE_PRELOADS = ${JSON.stringify(preloads, null, 2)};`,
+    rEnd,
+  ].join("\n");
+  const i = src.indexOf(rStart);
+  const j = src.indexOf(rEnd) + rEnd.length;
+  if (i < 0) throw new Error("site/assets/js/routes.js: route-preloads markers not found");
+  const out = src.slice(0, i) + next + src.slice(j);
+  if (out !== src) {
+    if (check) stale.push("site/assets/js/routes.js");
+    else { writeFileSync(path, out); written++; }
+  }
+}
+
+// The handful of pages still served to crawlers as separate documents
+// (site/index.html, site/programs/index.html, site/verify/index.html and
+// generated site/programs/{slug}.html) carry no JS at all now — see
+// netlify/edge-functions/prerender-for-bots.ts — so there is nothing left
+// to preload on them; the loop below naturally skips them (no page-module
+// script tag to find) exactly as it always skipped the old meta-refresh
+// redirect stubs.
+const files = execSync("git ls-files site/**/*.html site/*.html", { cwd: ROOT, encoding: "utf8" })
+  .trim().split("\n")
+  .filter((f) => f !== "site/app.html"); // handled above, its own way
+
+const skipped = [];
 for (const file of files) {
   const path = join(ROOT, file);
   const src = readFileSync(path, "utf8");
 
   const entry = src.match(/src="\/assets\/js\/(pages\/[a-z-]+\.js)"/);
-  if (!entry) { skipped.push(file); continue; }   // the meta-refresh redirect stubs
+  if (!entry) { skipped.push(file); continue; }
 
   const next = block(join(JS, entry[1]));
 
@@ -111,8 +200,8 @@ if (check) {
     console.error("\nRun: node build/preloads.mjs");
     process.exit(1);
   }
-  console.log(`resource hints up to date in ${files.length - skipped.length} pages`);
+  console.log("resource hints up to date (app.html, routes.js, and " + (files.length - skipped.length) + " crawler-facing pages)");
 } else {
-  console.log(`resource hints written: ${written} changed, ${files.length - skipped.length} pages total`);
-  if (skipped.length) console.log(`  skipped (no page module): ${skipped.join(", ")}`);
+  console.log(`resource hints written: ${written} changed`);
+  if (skipped.length) console.log(`  skipped (no page module, crawler-only static content): ${skipped.join(", ")}`);
 }

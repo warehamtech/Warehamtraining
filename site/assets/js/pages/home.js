@@ -50,13 +50,50 @@ const steps = [
 
 /* --- Render ---------------------------------------------------------------
  *
- * These three are pure: given their inputs they return nodes, and they read
- * neither the session nor the network. build/prerender.mjs calls them at
- * generate time to bake this page's content into index.html, so that a visitor
- * (and a crawler, and a link unfurler) gets the page without waiting on
- * JavaScript. init() below calls the same three in the browser, which is what
- * keeps the generated copy and the live one from drifting apart.
+ * These are pure: given their inputs they return nodes, and they read
+ * neither the session nor the network. build/prerender.mjs calls trustNodes/
+ * stepsNodes/catalogueNodes at generate time, splicing each into its own
+ * fixed spot in site/index.html's hand-authored hero/trust/catalogue/steps/
+ * quote markup — so that a visitor (and a crawler, and a link unfurler)
+ * gets the page without waiting on JavaScript. init() below reconstructs
+ * that same surrounding markup and calls the same node-builders, which is
+ * what keeps the generated copy and the live one from drifting apart.
  */
+
+export function heroNodes() {
+  return el("section", { class: "hero" },
+    el("div", { class: "shell hero__inner" },
+      el("div", { class: "hero__content" }, [
+        el("img", {
+          src: "/assets/brand/wha-butterfly-white.png", alt: "Wareham & Associates",
+          width: "230", height: "77", fetchpriority: "high", decoding: "async",
+        }),
+        el("p", { class: "hero__eyebrow" }, "Learning Portal"),
+        el("h1", { class: "display" }, "Compliance training that builds lasting capability."),
+        el("p", { class: "hero__lede" },
+          "World-class online training in international standards, led by subject " +
+          "matter experts. Trusted by blue-chip manufacturers and service " +
+          "providers across Africa."),
+        el("div", { class: "hero__actions" }, [
+          el("a", { class: "btn btn--accent btn--lg", href: "/programs/index.html" }, "Browse the catalogue"),
+          el("a", { class: "btn btn--on-dark btn--lg", href: "/login.html" }, "Sign in to your learning"),
+        ]),
+      ])));
+}
+
+export function quoteNodes() {
+  return el("figure", { class: "quote" }, [
+    el("blockquote", { class: "display" },
+      "“We believe that the cost of compliance should be zero — our " +
+      "team of experts work closely with your management team to deliver " +
+      "measurable benefits while meeting your market, legal and regulatory " +
+      "requirements.”"),
+    el("figcaption", {}, [
+      el("strong", {}, "Grant Wareham"),
+      " · Managing Director, Wareham & Associates",
+    ]),
+  ]);
+}
 
 export function trustNodes() {
   return trust.map((item) =>
@@ -94,26 +131,40 @@ export const PREVIEW_LIMIT = 6;
 export async function init() {
   publicChrome();
 
-  const trustHost = document.querySelector("#trust");
-  if (trustHost && trustHost.children.length === 0) {
-    mount(trustHost, trustNodes());
-  }
-
-  const stepsHost = document.querySelector("#steps");
-  if (stepsHost && stepsHost.children.length === 0) {
-    mount(stepsHost, stepsNodes());
-  }
-
-  // Only the catalogue needs the database; everything above renders instantly
-  // from the HTML.
+  // Only the catalogue needs the database; everything else renders instantly.
+  let catalogue;
   try {
-    mount("#catalogue", catalogueNodes(await listPrograms(PREVIEW_LIMIT)));
+    catalogue = catalogueNodes(await listPrograms(PREVIEW_LIMIT));
   } catch (error) {
     console.error(error);
-    mount("#catalogue", emptyState({
+    catalogue = emptyState({
       iconName: "alert",
       title: "The catalogue could not be loaded",
       description: "Please refresh the page, or call us on (021) 713-2380.",
-    }));
+    });
   }
+
+  mount("#app", [
+    heroNodes(),
+    el("section", { class: "section--band" },
+      el("ul", { class: "shell trust" }, trustNodes())),
+    el("section", { class: "shell section" }, [
+      el("div", { class: "page-head" }, [
+        el("div", {}, [
+          el("h2", { class: "display" }, "Training programmes"),
+          el("p", {},
+            "Each programme bundles several courses. Work through them in your own " +
+            "time and earn a certificate on completion."),
+        ]),
+        el("a", { class: "link", href: "/programs/index.html" }, "View all programmes"),
+      ]),
+      catalogue,
+    ]),
+    el("section", { class: "section--band" },
+      el("div", { class: "shell section" }, [
+        el("h2", { class: "display" }, "How it works"),
+        el("ol", { class: "steps" }, stepsNodes()),
+      ])),
+    el("section", { class: "shell section" }, quoteNodes()),
+  ]);
 }

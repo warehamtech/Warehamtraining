@@ -1,4 +1,4 @@
-import { $ } from "../dom.js";
+import { el, mount } from "../dom.js";
 import { renderPublicHeader, renderFooter } from "../shell.js";
 import { setFormMessage, setPending } from "../ui.js";
 import { getUser, signIn, resetPassword, nextAfterLogin } from "../session.js";
@@ -19,12 +19,47 @@ export async function init() {
   // Carry `?next=` through to registration, so someone who signs up instead
   // still lands where they were going.
   const next = new URLSearchParams(location.search).get("next");
-  if (next) {
-    const link = $("#register-link");
-    link.href = `/register.html?next=${encodeURIComponent(next)}`;
-  }
+  const registerHref = next
+    ? `/register.html?next=${encodeURIComponent(next)}`
+    : "/register.html";
 
-  const form = $("#login-form");
+  const form = el("form", { id: "login-form", novalidate: true }, [
+    el("div", { "data-message": "" }),
+    el("div", { class: "field" }, [
+      el("label", { class: "field__label", for: "email" }, ["Email", el("span", { class: "field__required" }, "*")]),
+      el("input", {
+        class: "control", id: "email", name: "email", type: "email", required: true,
+        autocomplete: "email", autocapitalize: "off", spellcheck: "false",
+      }),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { class: "field__label", for: "password" }, ["Password", el("span", { class: "field__required" }, "*")]),
+      el("input", {
+        class: "control", id: "password", name: "password", type: "password",
+        required: true, autocomplete: "current-password",
+      }),
+    ]),
+    el("div", { class: "row row--between" },
+      el("button", { class: "link t-sm", type: "button", id: "forgot" }, "Forgotten your password?")),
+    el("button", { class: "btn btn--primary btn--block", type: "submit" }, "Sign in"),
+  ]);
+
+  mount("#app", el("div", { class: "auth-card" }, [
+    el("div", { class: "center" }, [
+      el("a", { href: "/", "aria-label": "Wareham & Associates home" },
+        el("img", {
+          src: "/assets/brand/wha-logo.png", alt: "Wareham & Associates",
+          width: "160", height: "62", style: { width: "160px", height: "auto", margin: "0 auto" },
+        })),
+      el("h1", { class: "display t-2xl mt-6" }, "Sign in"),
+      el("p", { class: "muted t-sm mt-2" }, "Welcome back. Pick up where you left off."),
+    ]),
+    el("section", { class: "card mt-6" }, el("div", { class: "card__body" }, form)),
+    el("p", { class: "auth-foot" }, [
+      "Don't have an account? ",
+      el("a", { class: "link", href: registerHref }, "Create one"),
+    ]),
+  ]));
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -51,7 +86,7 @@ export async function init() {
     location.href = nextAfterLogin(user?.role ?? "LEARNER");
   });
 
-  $("#forgot").addEventListener("click", async () => {
+  form.querySelector("#forgot").addEventListener("click", async () => {
     const email = form.elements.email.value.trim().toLowerCase();
     if (!email) {
       setFormMessage(form, "Enter your email address first, then choose this again.");
