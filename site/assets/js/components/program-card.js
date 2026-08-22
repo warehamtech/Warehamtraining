@@ -27,7 +27,7 @@ function publicHref(program) {
 
 export function programCard(program, { admin = false } = {}) {
   return el("a", {
-    href: admin ? `/admin/program.html?id=${program.id}` : publicHref(program),
+    href: admin ? `/admin/builder.html?id=${program.id}` : publicHref(program),
     class: "program-card",
   }, [
     program.standard ? badge(program.standard, "brand") : null,

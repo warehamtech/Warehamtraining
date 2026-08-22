@@ -1296,3 +1296,701 @@ body:has(.hero) {
   flex: 1;
 }
 
+/* ---------------------------------------------------------------------------
+   Course Builder (assets/js/pages/admin-builder.js)
+
+   One screen for the whole programme: outline on the left, the selected
+   lesson's block canvas (or its assessment) in the middle, and a focus dock
+   that slides in over the outline while a single block is being edited.
+
+   An app shell, not a document: the builder owns the viewport below the site
+   header and scrolls its two panes independently, so the outline stays put
+   while a long lesson scrolls. Below 1024px that inverts to ordinary page
+   flow — a fixed-height two-pane layout has nowhere to put the outline on a
+   phone.
+--------------------------------------------------------------------------- */
+
+.builder-main {
+  width: 100%;
+}
+
+.builder-shell {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface);
+}
+
+@media (min-width: 1024px) {
+  .builder-shell {
+    height: calc(100vh - var(--header-h));
+    overflow: hidden;
+  }
+}
+
+/* --- Top bar -------------------------------------------------------------- */
+
+.builder-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 1rem;
+  background-color: var(--white);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.builder-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.builder-topbar__logo {
+  height: 1.75rem;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.builder-topbar__heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.builder-topbar__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 16rem;
+}
+
+.builder-topbar__spacer {
+  flex: 1 1 auto;
+}
+
+/* Segmented controls — view switcher, viewport, edit/learner toggle. */
+.builder-seg-group {
+  display: flex;
+  align-items: center;
+  gap: 0.1875rem;
+  padding: 0.1875rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line);
+  background-color: var(--surface);
+}
+
+.builder-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-subtle);
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms, box-shadow 150ms;
+}
+
+.builder-seg:hover {
+  color: var(--ink);
+}
+
+.builder-seg.is-active {
+  background-color: var(--white);
+  color: var(--brand-700);
+  box-shadow: var(--shadow-card);
+}
+
+.builder-seg--icon {
+  padding: 0.375rem 0.5rem;
+}
+
+/* The learner toggle is a mode, not a tab — it reads as "on", not "selected". */
+.builder-seg--learner.is-active {
+  background-color: var(--brand-600);
+  color: var(--white);
+}
+
+/* --- Body: outline + canvas ---------------------------------------------- */
+
+.builder-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+@media (min-width: 1024px) {
+  .builder-body {
+    grid-template-columns: 19.5rem minmax(0, 1fr);
+  }
+}
+
+.builder-outline {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--white);
+  border-bottom: 1px solid var(--line);
+}
+
+@media (min-width: 1024px) {
+  .builder-outline {
+    border-bottom: 0;
+    border-right: 1px solid var(--line);
+  }
+}
+
+.builder-outline__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid var(--line);
+  background-color: var(--surface);
+  flex-shrink: 0;
+}
+
+.builder-outline__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.builder-outline__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.75rem 0.875rem;
+  border-top: 1px solid var(--line);
+  background-color: var(--surface);
+  flex-shrink: 0;
+}
+
+.builder-course {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background-color: var(--white);
+  overflow: hidden;
+}
+
+.builder-course__head {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.375rem;
+  background-color: var(--surface);
+  cursor: pointer;
+  user-select: none;
+}
+
+.builder-course__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.builder-course__list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.builder-node {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  width: 100%;
+  padding: 0.4375rem 0.625rem 0.4375rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+  border-left: 2px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms, color 150ms;
+}
+
+.builder-node:hover {
+  background-color: var(--brand-50);
+  color: var(--ink);
+}
+
+.builder-node.is-active {
+  background-color: var(--brand-50);
+  color: var(--brand-700);
+  border-left-color: var(--brand-600);
+  font-weight: 500;
+}
+
+.builder-node__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.builder-node__meta {
+  font-size: 0.6875rem;
+  color: var(--ink-subtle);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.builder-node--add {
+  color: var(--brand-600);
+  font-weight: 500;
+}
+
+/* An assessment is a different kind of stop in the course, so it carries the
+   accent rather than the brand blue every lesson row uses. */
+.builder-node--quiz .builder-node__icon {
+  color: var(--accent-500);
+}
+
+.builder-outline__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.625rem;
+  border: 1px dashed var(--brand-300);
+  border-radius: var(--radius-md);
+  background-color: var(--brand-50);
+  color: var(--brand-700);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.builder-outline__add:hover {
+  background-color: var(--white);
+  border-color: var(--brand-500);
+}
+
+/* --- Canvas --------------------------------------------------------------- */
+
+.builder-canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem 6rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.builder-canvas {
+  width: 100%;
+  max-width: 56rem;
+  display: flex;
+  flex-direction: column;
+  transition: max-width 250ms var(--ease-out-soft);
+}
+
+.builder-canvas--tablet { max-width: 44rem; }
+.builder-canvas--mobile { max-width: 24rem; }
+
+.builder-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 1rem;
+  font-size: 0.8125rem;
+  color: var(--ink-subtle);
+}
+
+.builder-block {
+  position: relative;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-card);
+  transition: border-color 150ms, box-shadow 200ms var(--ease-out-soft),
+    opacity 200ms, filter 200ms;
+}
+
+.builder-block:hover {
+  border-color: var(--brand-200);
+}
+
+.builder-block.is-focused {
+  border-color: var(--brand-500);
+  box-shadow: var(--shadow-pop);
+  z-index: 30;
+}
+
+/* Everything except the block being edited recedes, so the dock's controls
+   read unambiguously as belonging to one block. */
+.builder-canvas.has-focus .builder-block:not(.is-focused) {
+  opacity: 0.3;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.builder-canvas.has-focus .builder-inserter {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.builder-block__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  background-color: var(--surface);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
+.builder-block__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+}
+
+.builder-block__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.builder-block:hover .builder-block__bar,
+.builder-block:focus-within .builder-block__bar,
+.builder-block.is-focused .builder-block__bar {
+  opacity: 1;
+}
+
+.builder-block__preview {
+  padding: 1.25rem;
+  cursor: pointer;
+}
+
+.builder-block__hint {
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--ink-subtle);
+  cursor: pointer;
+}
+
+/* Floating Prev / Exit / Next bar above the block being edited. */
+.builder-focus-nav {
+  position: absolute;
+  top: -1.125rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border-radius: var(--radius-full);
+  background-color: var(--brand-600);
+  box-shadow: var(--shadow-pop);
+  white-space: nowrap;
+  z-index: 35;
+}
+
+.builder-focus-nav__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--white);
+  transition: background-color 150ms;
+}
+
+.builder-focus-nav__btn:hover:not(:disabled) {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.builder-focus-nav__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Insert-between-blocks affordance. Faint until approached — present enough
+   to find, quiet enough not to stripe the canvas with buttons. */
+.builder-inserter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.75rem;
+  opacity: 0.4;
+  transition: opacity 150ms;
+}
+
+.builder-inserter:hover,
+.builder-inserter:focus-within {
+  opacity: 1;
+}
+
+.builder-inserter__btn {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--brand-300);
+  background-color: var(--white);
+  color: var(--brand-600);
+  box-shadow: var(--shadow-card);
+  transition: background-color 150ms, color 150ms, transform 150ms;
+}
+
+.builder-inserter__btn:hover {
+  background-color: var(--brand-600);
+  color: var(--white);
+  transform: scale(1.12);
+}
+
+/* --- Focus dock ----------------------------------------------------------- */
+
+.builder-dock {
+  position: fixed;
+  left: 0.75rem;
+  top: calc(var(--header-h) + 4rem);
+  width: 20rem;
+  max-height: calc(100vh - var(--header-h) - 5.5rem);
+  overflow-y: auto;
+  z-index: 60;
+  padding: 1rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-pop);
+  animation: builder-dock-in 220ms var(--ease-out-soft) both;
+}
+
+@keyframes builder-dock-in {
+  from { opacity: 0; transform: translateX(-0.75rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes builder-dock-in-sheet {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* No room to dock beside the canvas on a phone — become a bottom sheet. */
+@media (max-width: 1023px) {
+  .builder-dock {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    max-height: 70vh;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    animation-name: builder-dock-in-sheet;
+  }
+}
+
+.builder-dock__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.875rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.builder-dock__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.builder-dock__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.builder-dock__legend {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-600);
+}
+
+.builder-dock__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+/* --- Block chooser modal -------------------------------------------------- */
+
+.builder-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: wha-rise 180ms var(--ease-out-soft) both;
+}
+
+.builder-modal__panel {
+  width: 100%;
+  max-width: 36rem;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-pop);
+}
+
+.builder-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background-color: var(--white);
+}
+
+.builder-modal__body {
+  padding: 1.25rem;
+}
+
+.builder-chooser-grid {
+  display: grid;
+  gap: 0.625rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.builder-chooser-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  text-align: left;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background-color: var(--surface);
+  transition: border-color 150ms, background-color 150ms, transform 150ms,
+    box-shadow 150ms;
+}
+
+.builder-chooser-card:hover {
+  border-color: var(--brand-400);
+  background-color: var(--white);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
+}
+
+.builder-chooser-card__icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--brand-50);
+  color: var(--brand-600);
+}
+
+.builder-chooser-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.builder-chooser-card__text strong {
+  font-size: 0.8125rem;
+  color: var(--ink);
+}
+
+.builder-chooser-card__text span {
+  font-size: 0.75rem;
+  color: var(--ink-subtle);
+}
+
+/* --- Flow map ------------------------------------------------------------- */
+
+.builder-map {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.builder-map__node {
+  width: 100%;
+  padding: 0.875rem 1.125rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-card);
+}
+
+.builder-map__node--course {
+  background-color: var(--brand-50);
+  border-color: var(--brand-200);
+}
+
+/* Assessments are the decision points in a course's flow — accent, not brand,
+   so they stand apart from the lesson nodes at a glance. */
+.builder-map__node--quiz {
+  border-color: var(--accent-200);
+  background-color: var(--accent-50);
+}
+
+.builder-map__link {
+  width: 2px;
+  height: 1.25rem;
+  background-color: var(--line-strong);
+}
+
+.builder-map__label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-subtle);
+}
+

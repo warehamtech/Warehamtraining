@@ -56,6 +56,14 @@ export const ROUTES = {
     header: "app",
     title: "My details",
   },
+  // The unified course builder. Full-bleed, not the usual centred shell — it
+  // owns the viewport below the header and scrolls its two panes itself.
+  "/admin/builder.html": {
+    module: "/assets/js/pages/admin-builder.js",
+    mainClass: "builder-main",
+    header: "app",
+    title: "Course Builder",
+  },
   "/admin/invoices.html": {
     module: "/assets/js/pages/admin-invoices.js",
     mainClass: "shell section--tight",
@@ -256,16 +264,28 @@ export const ROUTE_PRELOADS = {
     "/assets/js/catalog.js",
     "/assets/js/components/program-card.js",
     "/assets/js/money.js",
+    "/assets/js/nav-state.js",
     "/assets/js/pages/home.js"
   ],
   "/index.html": [
     "/assets/js/catalog.js",
     "/assets/js/components/program-card.js",
     "/assets/js/money.js",
+    "/assets/js/nav-state.js",
     "/assets/js/pages/home.js"
   ],
   "/account.html": [
     "/assets/js/pages/account.js"
+  ],
+  "/admin/builder.html": [
+    "/assets/js/components/block-editors.js",
+    "/assets/js/components/block-render.js",
+    "/assets/js/components/learner-preview.js",
+    "/assets/js/components/question-editors.js",
+    "/assets/js/drag-reorder.js",
+    "/assets/js/money.js",
+    "/assets/js/pages/admin-builder.js",
+    "/assets/js/storage-upload.js"
   ],
   "/admin/invoices.html": [
     "/assets/js/invoices.js",
@@ -372,6 +392,7 @@ export const ROUTE_PRELOADS = {
     "/assets/js/catalog.js",
     "/assets/js/components/program-card.js",
     "/assets/js/money.js",
+    "/assets/js/nav-state.js",
     "/assets/js/pages/programs.js"
   ],
   "/programs/program.html": [
@@ -391,6 +412,7 @@ export const ROUTE_PRELOADS = {
     "/assets/js/pages/certificate-verify.js"
   ],
   "/verify/index.html": [
+    "/assets/js/nav-state.js",
     "/assets/js/pages/verify.js"
   ]
 };

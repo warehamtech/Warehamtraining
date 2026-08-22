@@ -23,7 +23,7 @@
   The preconnect opens DNS + TLS to Supabase now rather than when the first
   query fires, several hundred ms into the load. `crossorigin` is required:
   without it the browser warms a connection the CORS fetches then decline to
-  reuse. The 13 modulepreloads are this page's entire module graph,
+  reuse. The 14 modulepreloads are this page's entire module graph,
   which the browser would otherwise discover four levels deep, a round trip
   at a time.
   Regenerate with: node build/preloads.mjs
@@ -38,6 +38,7 @@
 <link rel="modulepreload" href="/assets/js/env.js">
 <link rel="modulepreload" href="/assets/js/icons.js">
 <link rel="modulepreload" href="/assets/js/money.js">
+<link rel="modulepreload" href="/assets/js/nav-state.js">
 <link rel="modulepreload" href="/assets/js/pages/programs.js">
 <link rel="modulepreload" href="/assets/js/session.js">
 <link rel="modulepreload" href="/assets/js/shell.js">

@@ -10,8 +10,8 @@ import { sb } from "../supabase.js";
 
 /**
  * The quick-create step of the course-building flow: just enough to get a
- * draft `programs` row, then straight into the curriculum builder
- * (admin/program.html) to fill in the rest — settings, courses, lessons.
+ * draft `programs` row, then straight into the course builder
+ * (admin/builder.html) to fill in the rest — settings, modules, lessons.
  */
 
 const slugify = (value) =>
@@ -148,7 +148,7 @@ async function render(admin) {
       }
 
       setPending(form, false);
-      location.href = `/admin/program.html?id=${prog.id}`;
+      location.href = `/admin/builder.html?id=${prog.id}`;
     } catch (err) {
       console.error("Program creation error:", err);
       setPending(form, false);
