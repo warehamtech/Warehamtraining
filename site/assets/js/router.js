@@ -1,15 +1,30 @@
 import { runPage, setTitle } from "./dom.js";
 import { resolveRoute, NOT_FOUND_ROUTE, ROUTE_PRELOADS } from "./routes.js";
+import { markLoaded } from "./nav-state.js";
 
 /**
- * The site's entire client-side router. Every route lives in routes.js —
- * there is no HTML document to fetch for any of them, `app.html` (the one
- * document this script ever runs in for a real visitor) already has
- * everything. A handful of pages still exist as separate static files
- * purely so crawlers/link-unfurlers see real content without running JS
- * (see netlify/edge-functions/prerender-for-bots.ts); a real visitor is
- * rewritten to app.html before that HTML ever reaches the browser, so this
- * file never needs to know those other documents exist.
+ * The site's entire client-side router. Every collapsed route lives in
+ * routes.js and resolves against whatever document is currently loaded —
+ * usually app.html, the single shell — with no HTML to fetch: just a
+ * synchronous header/title/class swap and a dynamic import().
+ *
+ * A handful of pages (/, /programs/index.html, /programs/{slug}.html,
+ * /verify/index.html) are still real, separate static files
+ * build/prerender.mjs fills in, so a direct load of one of them gets real
+ * content instantly instead of the blank shell. This file doesn't need to
+ * know that: those paths are ROUTES entries too, and every document — the
+ * shell or one of these — carries the same #site-header/#app/#site-footer
+ * IDs and this same script, so navigating away from one of them (or back to
+ * one, client-side) works exactly like navigating anywhere else.
+ *
+ * home.js/programs.js/verify.js need to know whether #app still holds their
+ * page's own real, on-disk content or needs building from scratch — that
+ * flag (nav-state.js's isFirstLoad) has to live in its own tiny module
+ * rather than here: this file self-runs a real-browser-only bootstrap the
+ * moment it's imported (the listeners and the goTo() call at the bottom),
+ * and build/prerender.mjs imports those three page modules directly under
+ * Node, with no real DOM — importing this file from any of them, even only
+ * for an export, would run that bootstrap there too and crash.
  */
 
 function warmModule(specifier) {
@@ -37,7 +52,13 @@ async function activateRoute(route, pathname, { push, url } = {}) {
   const main = document.querySelector("#app");
   header.className = route.header === "app" ? "site-header site-header--app" : "site-header";
   main.className = route.mainClass;
-  setTitle(route.title);
+  // A null title means "leave it alone" — the still-real prerendered pages
+  // (/, /programs/index.html, /programs/{slug}.html, /verify/index.html)
+  // already carry the correct one when reached by a direct load, and their
+  // own page module sets an appropriate one itself when it isn't (reached
+  // via client-side nav instead, with no prerendered document to read a
+  // title from). Every other route sets one unconditionally.
+  if (route.title !== null) setTitle(route.title);
 
   if (push) {
     history.pushState({}, "", url);
@@ -49,7 +70,16 @@ async function activateRoute(route, pathname, { push, url } = {}) {
     if (typeof mod.init !== "function") {
       throw new Error(`${route.module} has no init() export.`);
     }
-    return mod.init();
+    // Flips only after init() genuinely settles, not after this activation
+    // merely starts — runPage() doesn't expose fn()'s completion to its
+    // caller (it's fire-and-forget outside its own error boundary), so
+    // there's no other point that reliably fires exactly once, after this
+    // one specific init() call, and not a moment sooner.
+    try {
+      return await mod.init();
+    } finally {
+      markLoaded();
+    }
   });
 }
 

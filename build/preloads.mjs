@@ -2,8 +2,10 @@
  * Regenerate site/app.html's resource-hint block (the shared core every
  * route needs), the per-route ROUTE_PRELOADS table in routes.js (each
  * route's own modules, minus that shared core), and the resource-hint
- * blocks on the handful of pages that are still separate documents for
- * crawlers/link-unfurlers (see netlify/edge-functions/prerender-for-bots.ts).
+ * blocks on the handful of pages that are still separate documents in their
+ * own right (/, /programs/index.html, /verify/index.html and generated
+ * /programs/{slug}.html — real content for every visitor, not just
+ * crawlers, see the comment above the redirects in netlify.toml).
  *
  *   node build/preloads.mjs           rewrite the blocks
  *   node build/preloads.mjs --check   fail if any block is out of date
@@ -156,13 +158,14 @@ const stale = [];
   }
 }
 
-// The handful of pages still served to crawlers as separate documents
+// The handful of pages still served as their own real documents
 // (site/index.html, site/programs/index.html, site/verify/index.html and
-// generated site/programs/{slug}.html) carry no JS at all now — see
-// netlify/edge-functions/prerender-for-bots.ts — so there is nothing left
-// to preload on them; the loop below naturally skips them (no page-module
-// script tag to find) exactly as it always skipped the old meta-refresh
-// redirect stubs.
+// generated site/programs/{slug}.html) carry their own page-module script
+// tag same as any pre-migration page did, so the loop below generates a
+// normal per-page hint block for each of them exactly as before; only the
+// two meta-refresh redirect stubs (now plain netlify.toml redirects, no
+// files on disk at all) and app.html (handled above, its own way) are
+// skipped here.
 const files = execSync("git ls-files site/**/*.html site/*.html", { cwd: ROOT, encoding: "utf8" })
   .trim().split("\n")
   .filter((f) => f !== "site/app.html"); // handled above, its own way
@@ -200,8 +203,8 @@ if (check) {
     console.error("\nRun: node build/preloads.mjs");
     process.exit(1);
   }
-  console.log("resource hints up to date (app.html, routes.js, and " + (files.length - skipped.length) + " crawler-facing pages)");
+  console.log("resource hints up to date (app.html, routes.js, and " + (files.length - skipped.length) + " standalone pages)");
 } else {
   console.log(`resource hints written: ${written} changed`);
-  if (skipped.length) console.log(`  skipped (no page module, crawler-only static content): ${skipped.join(", ")}`);
+  if (skipped.length) console.log(`  skipped (no page module — e.g. a redirect stub): ${skipped.join(", ")}`);
 }

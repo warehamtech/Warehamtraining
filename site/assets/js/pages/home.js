@@ -1,9 +1,10 @@
-import { el, mount } from "../dom.js";
+import { el, mount, setTitle } from "../dom.js";
 import { icon } from "../icons.js";
 import { publicChrome } from "../shell.js";
 import { emptyState } from "../ui.js";
 import { listPrograms } from "../catalog.js";
 import { programCard } from "../components/program-card.js";
+import { isFirstLoad } from "../nav-state.js";
 
 /** Port of src/app/(public)/page.tsx. */
 
@@ -131,7 +132,31 @@ export const PREVIEW_LIMIT = 6;
 export async function init() {
   publicChrome();
 
-  // Only the catalogue needs the database; everything else renders instantly.
+  // site/index.html is still a real, separate file build/prerender.mjs
+  // fills in — a direct load of "/" gets that file's own real content
+  // instantly, #trust/#steps/#catalogue already in place, and only needs
+  // hydrating. Reached any other way (client-side nav from elsewhere in the
+  // app), the whole page has to be built here instead — see isFirstLoad's
+  // own comment in router.js for why that's the reliable signal, not a DOM
+  // check.
+  const prerendered = isFirstLoad;
+
+  if (prerendered) {
+    mount("#trust", trustNodes());
+    mount("#steps", stepsNodes());
+    try {
+      mount("#catalogue", catalogueNodes(await listPrograms(PREVIEW_LIMIT)));
+    } catch (error) {
+      console.error(error);
+      mount("#catalogue", emptyState({
+        iconName: "alert",
+        title: "The catalogue could not be loaded",
+        description: "Please refresh the page, or call us on (021) 713-2380.",
+      }));
+    }
+    return;
+  }
+
   let catalogue;
   try {
     catalogue = catalogueNodes(await listPrograms(PREVIEW_LIMIT));
@@ -143,6 +168,12 @@ export async function init() {
       description: "Please refresh the page, or call us on (021) 713-2380.",
     });
   }
+
+  // The real tagline title ("WHA Learning Portal — Compliance training…")
+  // only lives in site/index.html itself, in a format setTitle() doesn't
+  // produce — reached this way (client-side nav, no prerendered document to
+  // read it from), the plain site name is the reasonable fallback.
+  setTitle(null);
 
   mount("#app", [
     heroNodes(),

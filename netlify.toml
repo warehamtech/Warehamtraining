@@ -30,23 +30,29 @@
   WHA_SITE_URL = "https://wha.co.za"
 
 # The site is a single HTML shell, site/app.html, with client-side routing
-# (site/assets/js/routes.js) for everything. Three groups of routes:
+# (site/assets/js/routes.js) for everything EXCEPT three groups of routes
+# that stay real, separate static files instead:
 #
 #  1. A handful of paths (/, /programs/index.html, /programs/{slug}.html,
-#     /verify/index.html) have real SEO/link-preview value, so
+#     /verify/index.html) have real SEO/link-preview/first-paint value, so
 #     build/prerender.mjs still generates real static files at those exact
-#     paths and they are deliberately NOT redirected here — a Netlify Edge
-#     Function (netlify/edge-functions/prerender-for-bots.ts) rewrites a
-#     real visitor to /app.html while leaving a crawler/link-unfurler alone
-#     to see the generated file that already sits at that path. Adding a
-#     redirect rule for any of these paths would shadow that function.
+#     paths and they are deliberately NOT redirected here — every visitor,
+#     not just crawlers, gets that file directly, with real content already
+#     in the HTML rather than a blank shell waiting on JS. (An earlier
+#     version of this routed real visitors to the shell too, behind a
+#     User-Agent-sniffing Edge Function that let bots through to the real
+#     file — measurably worse: home/catalogue/course pages went from
+#     instant to a client-rendered "Loading…" for every human visitor, which
+#     is what prerendering exists to avoid. Reverted; these routes are still
+#     in routes.js too, so client-side navigation to them from elsewhere in
+#     the app is unaffected — only the very first, direct load changed.)
 #  2. /programs/program.html (the staff-only draft-preview template) has no
 #     SEO value but must stay on disk — build/prerender.mjs reads it
 #     directly as the template every generated programme page is spliced
 #     from — so it needs `force = true` to redirect live traffic away from
 #     a file that still physically exists.
 #  3. Everything else collapses unconditionally: no SEO value (already
-#     noindex), so no bot exception needed.
+#     noindex), and nothing to lose by never having been prerendered.
 #
 # Order matters — first match wins, so the old-bookmark redirects and the
 # force exception must precede the wildcards below them.
@@ -159,24 +165,13 @@
 
 # Anything genuinely missing still lands on the shell — router.js resolves
 # an unrecognized path to the styled not-found page — with a real 404
-# status. Files that still exist on disk (the edge-function-protected
-# group) are served directly by Netlify without ever reaching this rule.
+# status. Files that still exist on disk (group 1 above: /, /programs/*,
+# /verify/index.html) are served directly by Netlify without ever reaching
+# this rule.
 [[redirects]]
   from = "/*"
   to = "/app.html"
   status = 404
-
-[[edge_functions]]
-  path = "/"
-  function = "prerender-for-bots"
-
-[[edge_functions]]
-  path = "/programs/*"
-  function = "prerender-for-bots"
-
-[[edge_functions]]
-  path = "/verify/index.html"
-  function = "prerender-for-bots"
 
 [[headers]]
   for = "/*"

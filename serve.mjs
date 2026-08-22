@@ -3,16 +3,15 @@
  *
  *   node serve.mjs
  *
- * Serves the folder the way Netlify will for a real visitor: every route in
+ * Serves the folder the way Netlify will: every collapsed route in
  * site/assets/js/routes.js (plus the old-bookmark redirects and the
- * draft-preview template) resolves to app.html, exactly like the
- * netlify.toml redirects + prerender-for-bots edge function do in
- * production. It does NOT reproduce the edge function's bot-vs-human fork —
- * there's no way to usefully fake "is this Googlebot" locally, so every
- * request here gets the human path. Verifying that the still-real generated
- * pages (site/index.html, site/programs/index.html,
- * site/programs/{slug}.html, site/verify/index.html) actually reach a
- * crawler needs a real Netlify deploy preview.
+ * draft-preview template) resolves to app.html — except /,
+ * /programs/index.html, /programs/{slug}.html and /verify/index.html, which
+ * stay real static files build/prerender.mjs generates, served directly to
+ * everyone (not just crawlers) so those pages load instantly instead of
+ * waiting on JS. Those paths are still in routes.js too — that's what makes
+ * client-side navigation to them from elsewhere in the app instant, without
+ * affecting what a fresh, direct load of the URL gets.
  *
  * Node is not otherwise needed: the site has no build step.
  */
@@ -21,7 +20,15 @@ import { readFile, stat } from "node:fs/promises";
 import { join, extname, dirname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
-import { resolveRoute } from "./site/assets/js/routes.js";
+import { resolveRoute, matchProgramSlug } from "./site/assets/js/routes.js";
+
+/** Paths build/prerender.mjs keeps as real static files — served directly,
+ *  never redirected to the shell, matching netlify.toml. */
+function isPrerendered(pathname) {
+  return pathname === "/" || pathname === "/index.html"
+    || pathname === "/programs/index.html"
+    || pathname === "/verify/index.html" || !!matchProgramSlug(pathname);
+}
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "site");
 const PORT = Number(process.env.PORT ?? 4321);
@@ -60,17 +67,21 @@ createServer(async (request, response) => {
   }
 
   // Every app route, plus the draft-preview template (staff-only, no SEO
-  // value, always redirected — see netlify.toml), serves the shell.
-  if (rawPathname === "/programs/program.html" || resolveRoute(rawPathname)) {
+  // value, always redirected — see netlify.toml), serves the shell — except
+  // the still-real prerendered pages, which fall through to literal file
+  // serving below instead, exactly like Netlify won't shadow a file that
+  // actually exists on disk without `force = true`.
+  if (!isPrerendered(rawPathname)
+    && (rawPathname === "/programs/program.html" || resolveRoute(rawPathname))) {
     response.writeHead(200, { "Content-Type": TYPES[".html"], "Cache-Control": "no-store" });
     response.end(await readFile(join(ROOT, "app.html")));
     return;
   }
 
   // Real static assets: fonts, CSS, JS, images, robots.txt, sitemap.xml,
-  // and the handful of HTML files routes.js doesn't claim (the ones a
-  // crawler is meant to see directly in production). Directory-style
-  // requests resolve to their index.html only here, never for routing.
+  // and the still-real prerendered HTML pages (/, /programs/index.html,
+  // /programs/{slug}.html, /verify/index.html). Directory-style requests
+  // resolve to their index.html only here, never for routing.
   let path = rawPathname;
   if (path.endsWith("/")) path = join(path, "index.html").split("\\").join("/");
   const pathname = path;

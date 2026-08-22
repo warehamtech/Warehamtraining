@@ -1,8 +1,9 @@
-import { el, mount } from "../dom.js";
+import { el, mount, setTitle } from "../dom.js";
 import { autoChrome } from "../shell.js";
 import { emptyState, buttonLink } from "../ui.js";
 import { listPrograms } from "../catalog.js";
 import { programCard } from "../components/program-card.js";
+import { isFirstLoad } from "../nav-state.js";
 
 /** Port of src/app/(public)/programs/page.tsx. */
 
@@ -26,6 +27,10 @@ export function catalogueNodes(programs) {
 export async function init() {
   autoChrome();
 
+  // site/programs/index.html is still a real, separate file
+  // build/prerender.mjs fills in — see the same check in home.js's init().
+  const prerendered = isFirstLoad;
+
   let catalogue;
   try {
     catalogue = catalogueNodes(await listPrograms());
@@ -38,9 +43,15 @@ export async function init() {
     });
   }
 
+  if (prerendered) {
+    mount("#catalogue", catalogue);
+    return;
+  }
+
   // #app itself already carries the "shell section" class (routes.js's
   // mainClass for this route), matching the hand-authored markup
   // build/prerender.mjs splices into for the static crawler-facing copy.
+  setTitle("Training catalogue");
   mount("#app", [
     el("div", { class: "page-head" },
       el("div", {}, [
