@@ -217,13 +217,15 @@ export async function requireUser({ allowStale = true } = {}) {
 export async function requireRole(...roles) {
   // Strict: `roles` below is checked against user.role to decide a redirect,
   // and sending someone to the wrong area on a stale role is not cosmetic.
+  const allowed = roles.flat(Infinity);
   const user = await requireUser({ allowStale: false });
-  if (!roles.includes(user.role)) {
+  if (!allowed.includes(user.role)) {
     location.replace(homeFor(user.role));
     return new Promise(() => {});
   }
   return user;
 }
+
 
 export function homeFor(role) {
   switch (role) {

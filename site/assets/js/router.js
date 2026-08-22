@@ -28,10 +28,12 @@ import { runPage } from "./dom.js";
 async function activate(doc) {
   const script = doc.querySelector('script[type="module"][src^="/assets/js/pages/"]');
   if (!script) return; // e.g. the meta-refresh bookmark-redirect stub pages
+  const src = script.getAttribute("src");
+  if (!src) return;
   return runPage(async () => {
-    const mod = await import(script.src);
+    const mod = await import(src);
     if (typeof mod.init !== "function") {
-      throw new Error(`${script.getAttribute("src")} has no init() export.`);
+      throw new Error(`${src} has no init() export.`);
     }
     return mod.init();
   });
@@ -50,22 +52,43 @@ function syncLearnStylesheet(doc) {
 }
 
 let inFlight = 0;
+const htmlCache = new Map();
+
+/** Prefetch a page HTML into cache ahead of user click. */
+function prefetch(url) {
+  if (htmlCache.has(url)) return;
+  const promise = fetch(url)
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    })
+    .catch((err) => {
+      htmlCache.delete(url);
+      throw err;
+    });
+  htmlCache.set(url, promise);
+}
 
 async function navigate(url, { push = true } = {}) {
   const token = ++inFlight;
-  let response;
+  let htmlText;
   try {
-    response = await fetch(url);
+    if (htmlCache.has(url)) {
+      htmlText = await htmlCache.get(url);
+    } else {
+      const response = await fetch(url);
+      if (!response.ok) {
+        location.href = url; // e.g. Netlify's 404 rewrite — land on the real page
+        return;
+      }
+      htmlText = await response.text();
+    }
   } catch {
     location.href = url; // offline/network failure — fall back to a real load
     return;
   }
-  if (!response.ok) {
-    location.href = url; // e.g. Netlify's 404 rewrite — land on the real page
-    return;
-  }
 
-  const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+  const doc = new DOMParser().parseFromString(htmlText, "text/html");
 
   // A newer navigation started while this fetch was in flight — drop this one.
   if (token !== inFlight) return;
@@ -90,17 +113,30 @@ async function navigate(url, { push = true } = {}) {
   // and would otherwise see the previous page's URL.
   if (push) {
     history.pushState({}, "", url);
-    // Explicitly instant, not the bare two-argument form: html has
-    // scroll-behavior: smooth (for in-page anchor jumps), which would
-    // otherwise animate this too — and if the new page is shorter than the
-    // old scroll position, the browser already clamps that instantly on its
-    // own the moment the content above is swapped in, so an animated scroll
-    // on top of that reads as two separate motions rather than one.
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
 
   await activate(doc);
 }
+
+// Prefetch internal pages on pointer hover or keyboard focus
+document.addEventListener("pointerenter", (event) => {
+  const link = event.target?.closest?.("a");
+  if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
+  const url = new URL(link.href, location.href);
+  if (url.origin === location.origin && url.pathname !== location.pathname) {
+    prefetch(url.href);
+  }
+}, { passive: true, capture: true });
+
+document.addEventListener("focusin", (event) => {
+  const link = event.target?.closest?.("a");
+  if (!link || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
+  const url = new URL(link.href, location.href);
+  if (url.origin === location.origin && url.pathname !== location.pathname) {
+    prefetch(url.href);
+  }
+}, { passive: true });
 
 document.addEventListener("click", (event) => {
   if (event.defaultPrevented || event.button !== 0) return;

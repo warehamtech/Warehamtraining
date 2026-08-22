@@ -65,6 +65,7 @@ function block(entry) {
     "  at a time. Regenerate with: node build/preloads.mjs",
     "-->",
     `<link rel="preconnect" href="${SUPABASE_ORIGIN}" crossorigin>`,
+    `<link rel="preload" href="/assets/fonts/roboto-latin-variable.woff2" as="font" type="font/woff2" crossorigin>`,
     ...modules.map((m) => `<link rel="modulepreload" href="/assets/js/${m}">`),
     END,
   ].join("\n");

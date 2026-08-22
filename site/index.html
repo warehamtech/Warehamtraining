@@ -28,6 +28,7 @@
   at a time. Regenerate with: node build/preloads.mjs
 -->
 <link rel="preconnect" href="https://clstncdtjehcbdxibwgp.supabase.co" crossorigin>
+<link rel="preload" href="/assets/fonts/roboto-latin-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="modulepreload" href="/assets/js/analytics.js">
 <link rel="modulepreload" href="/assets/js/catalog.js">
 <link rel="modulepreload" href="/assets/js/components/program-card.js">
@@ -52,14 +53,14 @@
 </head>
 <body>
 <a class="skip-link" href="#app">Skip to content</a>
-<header id="site-header" class="site-header"><div class="shell site-header__bar"><a aria-label="Wareham & Associates — Learning Portal home" class="site-header__logo" href="/"><img style="width:140px;height:auto" height="55" width="140" alt="Wareham & Associates" src="/assets/brand/wha-logo.png"></a><nav aria-label="Main" class="site-nav"><a aria-current="page" class="nav-link" href="/index.html">Home</a><a class="nav-link" href="/programs/index.html">Catalogue</a><a class="nav-link" href="/verify/index.html">Verify</a><a class="nav-link" href="/login.html">Sign in</a><a class="btn btn--primary btn--sm" href="/register.html">Create account</a></nav></div></header>
+<header id="site-header" class="site-header"><div class="shell site-header__bar"><a aria-label="Wareham & Associates — Learning Portal home" class="site-header__logo" href="/"><img style="width:140px;height:auto" decoding="async" height="55" width="140" alt="Wareham & Associates" src="/assets/brand/wha-logo.png"></a><nav aria-label="Main" class="site-nav"><a aria-current="page" class="nav-link" href="/index.html">Home</a><a class="nav-link" href="/programs/index.html">Catalogue</a><a class="nav-link" href="/verify/index.html">Verify</a><a class="nav-link" href="/login.html">Sign in</a><a class="btn btn--primary btn--sm" href="/register.html">Create account</a></nav></div></header>
 
 <main id="app">
   <!-- Hero -->
   <section class="hero">
     <div class="shell hero__inner">
       <div class="hero__content">
-        <img src="/assets/brand/wha-butterfly-white.png" alt="Wareham &amp; Associates" width="230" height="77">
+        <img src="/assets/brand/wha-butterfly-white.png" alt="Wareham &amp; Associates" width="230" height="77" fetchpriority="high" decoding="async">
         <p class="hero__eyebrow">Learning Portal</p>
         <h1 class="display">Compliance training that builds lasting capability.</h1>
         <p class="hero__lede">
@@ -119,6 +120,6 @@
   </section>
 </main>
 
-<footer id="site-footer" class="site-footer"><div class="shell site-footer__cols"><div><img style="width:150px;height:auto" height="59" width="150" alt="Wareham & Associates" src="/assets/brand/wha-logo.png"><p class="site-footer__blurb">International standards and compliance consulting, training and facilitation.</p></div><div><h2>Portal</h2><ul><li><a href="/programs/index.html">Training catalogue</a></li><li><a href="/login.html">Sign in</a></li><li><a href="/verify/index.html">Verify a certificate</a></li></ul></div><div><h2>Contact</h2><address><p>2 Thorpe Close</p><p>Corner of Thorpe Close / Zwaanswyk Road</p><p>Tokai</p><p>7945</p><p style="padding-top:0.5rem"><a href="tel:0217132380">(021) 713-2380</a></p><p><a href="mailto:info1@wha.co.za">info1@wha.co.za</a></p></address></div></div><div class="site-footer__legal"><div class="shell"><p>© 2026 Wareham &amp; Associates. All rights reserved.</p></div></div></footer>
+<footer id="site-footer" class="site-footer"><div class="shell site-footer__cols"><div><img style="width:150px;height:auto" loading="lazy" decoding="async" height="59" width="150" alt="Wareham & Associates" src="/assets/brand/wha-logo.png"><p class="site-footer__blurb">International standards and compliance consulting, training and facilitation.</p></div><div><h2>Portal</h2><ul><li><a href="/programs/index.html">Training catalogue</a></li><li><a href="/login.html">Sign in</a></li><li><a href="/verify/index.html">Verify a certificate</a></li></ul></div><div><h2>Contact</h2><address><p>2 Thorpe Close</p><p>Corner of Thorpe Close / Zwaanswyk Road</p><p>Tokai</p><p>7945</p><p style="padding-top:0.5rem"><a href="tel:0217132380">(021) 713-2380</a></p><p><a href="mailto:info1@wha.co.za">info1@wha.co.za</a></p></address></div></div><div class="site-footer__legal"><div class="shell"><p>© 2026 Wareham &amp; Associates. All rights reserved.</p></div></div></footer>
 </body>
 </html>

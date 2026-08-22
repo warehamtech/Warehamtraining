@@ -85,6 +85,7 @@ const files = [
   join(migrations, "0006_lesson_blocks.sql"),
   join(migrations, "0007_downloads.sql"),
   join(migrations, "0008_quiz_engine_v2.sql"),
+  join(migrations, "0009_slides_audio_blocks.sql"),
 ];
 
 for (const file of files) {

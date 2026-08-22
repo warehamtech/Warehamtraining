@@ -58,43 +58,105 @@ async function render(admin) {
     event.preventDefault();
     setFormMessage(form, null);
 
-    const values = {
-      title: form.elements.title.value.trim(),
-      slug: slugify(form.elements.slug.value),
-      standard: form.elements.standard.value.trim(),
-    };
+    const titleVal = form.elements.title.value.trim();
+    const slugVal = slugify(form.elements.slug.value || titleVal);
+    const standardVal = form.elements.standard?.value?.trim() || "";
 
     const errors = {};
-    if (values.title.length < 3) errors.title = "Enter a title";
-    if (!values.slug) errors.slug = "Enter a URL slug";
+    if (titleVal.length < 3) errors.title = "Enter a title (at least 3 characters)";
+    if (!slugVal) errors.slug = "Enter a URL slug";
     setFieldErrors(form, errors);
     if (Object.keys(errors).length) return;
 
     setPending(form, true);
 
-    const { data, error } = await sb.from("programs").insert({
-      title: values.title,
-      slug: values.slug,
-      standard: values.standard || null,
-      // Placeholders — filled in on the next screen's Programme settings form.
-      summary: "",
-      description: "",
-      price_cents: 0,
-      published: false,
-    }).select("id").maybeSingle();
+    try {
+      const { data: prog, error } = await sb.from("programs").insert({
+        title: titleVal,
+        slug: slugVal,
+        standard: standardVal || null,
+        summary: `Comprehensive training programme for ${titleVal}.`,
+        description: `In this programme, learners master the principles, requirements, and best practices of ${titleVal}.`,
+        price_cents: 0,
+        published: false,
+      }).select("id").maybeSingle();
 
-    setPending(form, false);
+      if (error || !prog) {
+        setPending(form, false);
+        setFormMessage(form,
+          error?.code === "23505"
+            ? "A programme already uses that slug. Please enter a different title or slug."
+            : (error?.message || "Could not create programme. Please check your admin session."));
+        return;
+      }
 
-    if (error) {
-      setFormMessage(form,
-        error.code === "23505"
-          ? "A programme already uses that slug. Choose another."
-          : error.message);
-      return;
+      // Auto-create starter module and lesson so the studio is ready to build immediately
+      try {
+        const { data: course, error: courseErr } = await sb.from("courses").insert({
+          program_id: prog.id,
+          title: "Module 1: Introduction & Principles",
+          position: 1,
+        }).select("id").maybeSingle();
+        if (courseErr) throw courseErr;
+
+        if (course) {
+          const { data: lesson, error: lessonErr } = await sb.from("lessons").insert({
+            course_id: course.id,
+            title: "Lesson 1: Overview & Scope",
+            position: 1,
+            duration_minutes: 15,
+          }).select("id").maybeSingle();
+          if (lessonErr) throw lessonErr;
+
+          if (lesson) {
+            const { error: blockErr } = await sb.from("lesson_blocks").insert({
+              lesson_id: lesson.id,
+              block_type: "SLIDES",
+              position: 1,
+              content: {
+                slides: [
+                  {
+                    id: "s1",
+                    title: `${titleVal} — Overview`,
+                    subtitle: "Introduction & Scope",
+                    bullets: [
+                      "Key objectives and training outcomes",
+                      "Core standards, requirements, and principles",
+                      "Practical application and workplace compliance",
+                    ],
+                    notes: "Welcome learners and introduce the key learning outcomes.",
+                  },
+                ],
+              },
+            });
+            if (blockErr) throw blockErr;
+          }
+        }
+      } catch (innerErr) {
+        // Genuinely non-blocking: the programme itself was already created
+        // above, and a failed starter-content step just means the admin
+        // lands on an emptier curriculum than intended, not a broken one —
+        // so this still redirects rather than showing a form error. But
+        // `sb.from(...).insert()` doesn't throw on a database-reported
+        // error (only on a network-level failure), which is exactly why the
+        // three inserts above check `error` explicitly and throw it here:
+        // a plain try/catch around unchecked inserts would never actually
+        // catch a real Postgres error, only network exceptions — logging it
+        // is the difference between a real problem staying visible and it
+        // vanishing the way it used to.
+        console.error("Starter content for the new programme failed:", innerErr);
+      }
+
+      setPending(form, false);
+      location.href = `/admin/program.html?id=${prog.id}`;
+    } catch (err) {
+      console.error("Program creation error:", err);
+      setPending(form, false);
+      setFormMessage(form, err?.message || "An unexpected error occurred. Please try again.");
     }
-
-    location.href = `/admin/program.html?id=${data.id}`;
   });
+
+
 
   mount("#app",
     el("div", { class: "page-head" },

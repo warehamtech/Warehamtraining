@@ -50,6 +50,8 @@ body {
   line-height: 1.5;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -296,6 +298,13 @@ table {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Used by .studio-preview-overlay.is-closing (layout.css) — the "Review as
+   Learner" modal's own close animation, not a page-navigation one. */
+@keyframes wha-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

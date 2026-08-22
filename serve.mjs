@@ -32,6 +32,8 @@ const TYPES = {
   ".ico": "image/x-icon",
 };
 
+import { exec } from "node:child_process";
+
 createServer(async (request, response) => {
   const url = new URL(request.url, "http://localhost");
   let path = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
@@ -62,4 +64,9 @@ createServer(async (request, response) => {
   response.end(await readFile(join(ROOT, "404.html")).catch(() => "Not found"));
 }).listen(PORT, () => {
   console.log(`WHA Learning Portal — http://localhost:${PORT}`);
+  if (process.argv.includes("--open")) {
+    const cmd = process.platform === "win32" ? "start" : process.platform === "darwin" ? "open" : "xdg-open";
+    exec(`${cmd} http://localhost:${PORT}`);
+  }
 });
+

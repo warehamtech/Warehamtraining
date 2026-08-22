@@ -1,0 +1,49 @@
+-- WHA Learning Portal — slide deck and audio lesson blocks
+--
+-- Two more block_type values for the lesson_blocks system 0006 introduced.
+-- Everything about how a block is granted, secured and rendered already
+-- generalises to these — the only thing that changes is what the type
+-- enum permits and what shape `content` carries.
+--
+--   SLIDES → { "slides": [
+--               {
+--                 "id": "…",                                (client-generated,
+--                                                              stable across
+--                                                              edits so a
+--                                                              reorder or
+--                                                              delete keys off
+--                                                              it rather than
+--                                                              array position)
+--                 "title": "…", "subtitle": "…",
+--                 "bullets": ["…", …],                       (or:)
+--                 "body": "<p>…</p>",                        (rawHtml(), same
+--                                                              trust boundary
+--                                                              as TEXT/EMBED)
+--                 "image_file_key": "…" | "image_url": "…",  (mutually
+--                                                              exclusive, same
+--                                                              rule as VIDEO's
+--                                                              file_key/embed_url)
+--                 "notes": "…"                                (instructor-only;
+--                                                              shown in the
+--                                                              editor and the
+--                                                              admin preview,
+--                                                              never rendered
+--                                                              on the learner
+--                                                              lesson page)
+--               }, …
+--             ] }
+--   AUDIO  → { "file_key": "…" } | { "audio_url": "…" },     (mutually
+--             "title": "…", "speaker": "…"                    exclusive, same
+--                                                              rule as VIDEO)
+--
+-- AUDIO's file_key lives in the same lesson-media bucket VIDEO/IMAGE already
+-- use (0004_storage.sql) — that bucket has no MIME restriction and a 500MB
+-- cap, so it needs no policy change to accept audio.
+--
+-- Each statement stands alone deliberately: PostgreSQL will not let a new
+-- enum value be referenced in the same transaction that adds it, and these
+-- migrations run one file per query — bundling anything else into this file
+-- that touched 'SLIDES' or 'AUDIO' would risk exactly that error depending
+-- on the Postgres version running them.
+alter type public.block_type add value 'SLIDES';
+alter type public.block_type add value 'AUDIO';

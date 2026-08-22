@@ -93,8 +93,9 @@ main {
   top: 0;
   z-index: 40;
   border-bottom: 1px solid var(--line);
-  background-color: rgb(255 255 255 / 0.85);
-  backdrop-filter: blur(4px);
+  background-color: rgb(255 255 255 / 0.82);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .site-header__bar {
@@ -526,12 +527,13 @@ body:has(.hero) {
   background-color: var(--white);
   padding: 1.25rem;
   box-shadow: var(--shadow-card);
-  transition: box-shadow 200ms, transform 200ms, border-color 200ms;
+  transition: box-shadow 200ms var(--ease-out-soft), transform 200ms var(--ease-out-soft), border-color 200ms var(--ease-out-soft);
+  will-change: transform, box-shadow;
 }
 
 .program-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--brand-200);
+  transform: translateY(-3px);
+  border-color: var(--brand-300);
   box-shadow: var(--shadow-lift);
 }
 
@@ -974,6 +976,8 @@ body:has(.hero) {
   margin-top: auto;
   border-top: 1px solid var(--line);
   background-color: var(--white);
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 280px;
 }
 
 .site-footer__cols {
@@ -1072,3 +1076,223 @@ body:has(.hero) {
 .stat__hint--alert {
   color: var(--danger);
 }
+
+/* --- Course Builder Studio Layout ----------------------------------------- */
+
+.studio-container {
+  display: grid;
+  gap: 1.75rem;
+  align-items: start;
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .studio-container {
+    grid-template-columns: 21rem minmax(0, 1fr);
+  }
+}
+
+/* Studio Sticky Side Tracker */
+.studio-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .studio-sidebar {
+    position: sticky;
+    top: calc(var(--header-h) + 1.25rem);
+    max-height: calc(100vh - var(--header-h) - 2.5rem);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+}
+
+.studio-tracker-card {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.studio-tracker-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.studio-tree {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.studio-tree__item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--ink);
+  transition: background-color 150ms, color 150ms, border-color 150ms;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.studio-tree__item:hover {
+  background-color: var(--brand-50);
+  color: var(--brand-700);
+}
+
+.studio-tree__item.is-active {
+  background-color: var(--brand-50);
+  border-color: var(--brand-200);
+  color: var(--brand-700);
+  font-weight: 500;
+}
+
+.studio-tree__icon {
+  color: var(--brand-600);
+  flex-shrink: 0;
+}
+
+/* Main Studio Canvas */
+.studio-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
+.studio-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background: var(--white);
+  box-shadow: var(--shadow-card);
+}
+
+.studio-card {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background-color: var(--white);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 200ms var(--ease-out-soft), border-color 200ms var(--ease-out-soft);
+}
+
+.studio-card:focus-within,
+.studio-card:hover {
+  border-color: var(--brand-200);
+}
+
+/* Floating Action / Quick Speed Dial */
+.studio-floating-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-full);
+  background: rgb(255 255 255 / 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--brand-200);
+  box-shadow: var(--shadow-pop);
+}
+
+/* Studio Learner Preview Modal */
+.studio-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgb(15 23 42 / 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  animation: wha-rise 200ms var(--ease-out-soft) both;
+}
+
+.studio-preview-overlay.is-closing {
+  animation: wha-fade-out 180ms ease both;
+}
+
+.studio-preview-header {
+  height: 3.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 1.5rem;
+  background: var(--white);
+  border-bottom: 1px solid var(--line);
+}
+
+.studio-preview-vp-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--surface);
+  padding: 0.25rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line);
+}
+
+.studio-preview-vp-btn {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-full);
+  color: var(--ink-subtle);
+  transition: background-color 150ms, color 150ms;
+}
+
+.studio-preview-vp-btn:hover {
+  color: var(--ink);
+}
+
+.studio-preview-vp-btn.is-active {
+  background: var(--white);
+  color: var(--brand-700);
+  box-shadow: var(--shadow-card);
+}
+
+.studio-preview-scroller {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.studio-preview-device {
+  width: 100%;
+  background: var(--white);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  transition: max-width 250ms var(--ease-out-soft);
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-preview-device--desktop { max-width: 58rem; }
+.studio-preview-device--tablet { max-width: 44rem; }
+.studio-preview-device--mobile { max-width: 24rem; }
+
+.studio-preview-content {
+  padding: 2rem;
+  flex: 1;
+}
+

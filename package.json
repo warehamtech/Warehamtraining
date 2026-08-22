@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Tooling for the WHA Learning Portal. The site needs none of it at runtime: site/ is the finished website and Netlify serves it as-is. These scripts only rewrite committed files in place.",
   "scripts": {
+    "start": "node serve.mjs --open",
     "serve": "node serve.mjs",
     "generate": "node build/preloads.mjs && node build/prerender.mjs",
     "check": "node build/preloads.mjs --check && node build/prerender.mjs --check",

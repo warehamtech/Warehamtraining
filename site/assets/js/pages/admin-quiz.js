@@ -2,58 +2,83 @@ import { el, mount, param, setTitle } from "../dom.js";
 import { icon } from "../icons.js";
 import { appChrome } from "../shell.js";
 import {
-  badge, button, buttonLink, card, cardBody, cardHeader, emptyState, field,
+  button, buttonLink, card, emptyState, field,
   setFormMessage, setPending,
 } from "../ui.js";
 import { requireRole } from "../session.js";
 import { sb, unwrap, rpc } from "../supabase.js";
+import { openLearnerPreview } from "../components/learner-preview.js";
 
 /**
- * Assessment editor. Port of the quiz half of admin/programs/[id]/courses/…
- * Extended for the four question types added in 0008_quiz_engine_v2.sql.
- *
- * Note the read path: `choices.is_correct` and the whole
- * `question_answer_keys` table are granted to no client role, so this page
- * CANNOT select them from their tables. It calls admin_quiz(), a
- * SECURITY DEFINER function that checks is_wha_admin() and returns the full
- * tree including every answer key. Writes go to the tables normally — the
- * write policies already restrict them to WHA staff.
+ * Assessment & Quiz Studio: interactive question stepper, visual type selector,
+ * live question test simulator, and instant learner assessment preview.
  */
 
-const TYPE_LABEL = {
-  MULTIPLE_CHOICE: "Multiple choice",
-  SHORT_TEXT: "Short text",
-  MATCHING: "Matching",
-  ORDERING: "Ordering",
+const TYPE_CONFIG = {
+  MULTIPLE_CHOICE: {
+    label: "Multiple Choice",
+    hint: "Standard multiple-choice with radio selection",
+    icon: "helpCircle",
+  },
+  SHORT_TEXT: {
+    label: "Short Text Answer",
+    hint: "Learners type a keyword or phrase",
+    icon: "fileText",
+  },
+  MATCHING: {
+    label: "Matching Pairs",
+    hint: "Connect items on the left with items on the right",
+    icon: "shuffle",
+  },
+  ORDERING: {
+    label: "Sequence Ordering",
+    hint: "Learners arrange steps in the correct chronological order",
+    icon: "listOrdered",
+  },
 };
 
-/* --- Per-type editors -------------------------------------------------------
- *
- * Each returns { node, collect() }. collect() returns either
- * { ok: false, error } or { ok: true, type, ...typeData } — plain data, no DB
- * calls, so switching a question's type and back is just a fresh render, not
- * a partial save.
- */
+/* --- Type Editors --------------------------------------------------------- */
 
 function multipleChoiceEditor(question) {
   const rows = el("div", { class: "stack--sm" });
-  const groupName = `correct-${question.id}`;
+  const groupName = `correct-${question.id || "new"}`;
 
   const addRow = (choice = null) => {
-    const row = el("div", { class: "row" }, [
-      el("input", {
-        type: "radio", name: groupName, "aria-label": "Correct answer",
-        checked: choice?.is_correct ?? false,
-      }),
-      el("input", {
-        class: "control grow", type: "text",
-        value: choice?.text ?? "", placeholder: "Answer option",
-      }),
+    const isChecked = choice?.is_correct ?? false;
+    const radio = el("input", {
+      type: "radio",
+      name: groupName,
+      checked: isChecked,
+      style: { width: "1.25rem", height: "1.25rem", accentColor: "var(--success)" },
+    });
+
+    const textInput = el("input", {
+      class: "control grow",
+      type: "text",
+      value: choice?.text ?? "",
+      placeholder: "Choice text (e.g. ISO 9001 Clause 4.1)",
+    });
+
+    const row = el("div", {
+      class: "row p-2",
+      style: {
+        border: "1px solid var(--line)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--white)",
+        transition: "border-color 150ms",
+      },
+    }, [
+      radio,
+      textInput,
       button(icon("trash", 14), {
-        variant: "ghost", size: "sm", "aria-label": "Remove option",
-        onClick: () => row.remove(),
+        variant: "ghost", size: "sm", "aria-label": "Remove choice",
+        onClick: () => {
+          if (rows.children.length > 2) row.remove();
+          else alert("Multiple choice questions require at least 2 choices.");
+        },
       }),
     ]);
+
     rows.append(row);
   };
 
@@ -61,13 +86,12 @@ function multipleChoiceEditor(question) {
   if (!(question.choices ?? []).length) { addRow(); addRow(); }
 
   const node = el("div", { class: "field" }, [
-    el("label", { class: "field__label" }, "Answer options"),
-    el("p", { class: "field__hint" },
-      "Select the radio button beside the correct answer. Learners never receive this flag."),
+    el("label", { class: "field__label" }, "Answer Choices"),
+    el("p", { class: "field__hint mb-2" }, "Select the radio button beside the correct answer."),
     rows,
-    el("div", { class: "row mt-2" }, [
-      button([icon("plus", 14), "Add option"], {
-        variant: "ghost", size: "sm", onClick: () => addRow(),
+    el("div", { class: "row mt-3" }, [
+      button([icon("plus", 14), "Add Option"], {
+        variant: "secondary", size: "sm", onClick: () => addRow(),
       }),
     ]),
   ]);
@@ -81,7 +105,7 @@ function multipleChoiceEditor(question) {
       })).filter((choice) => choice.text);
 
       if (values.length < 2) {
-        return { ok: false, error: "Give the question at least two answer options." };
+        return { ok: false, error: "Give the question at least two answer choices." };
       }
       if (!values.some((choice) => choice.isCorrect)) {
         return { ok: false, error: "Mark one option as the correct answer." };
@@ -96,9 +120,12 @@ function shortTextEditor(question) {
 
   const addRow = (text = "") => {
     const row = el("div", { class: "row" }, [
-      el("input", { class: "control grow", type: "text", value: text, placeholder: "Accepted answer" }),
+      el("input", { class: "control grow", type: "text", value: text, placeholder: "Accepted exact phrase" }),
       button(icon("trash", 14), {
-        variant: "ghost", size: "sm", "aria-label": "Remove", onClick: () => row.remove(),
+        variant: "ghost", size: "sm", "aria-label": "Remove",
+        onClick: () => {
+          if (rows.children.length > 1) row.remove();
+        },
       }),
     ]);
     rows.append(row);
@@ -109,20 +136,20 @@ function shortTextEditor(question) {
   if (!accepted.length) addRow();
 
   const caseCheckbox = el("input", {
-    type: "checkbox", checked: question.answer_key?.case_sensitive ?? false,
+    type: "checkbox",
+    checked: question.answer_key?.case_sensitive ?? false,
   });
 
   const node = el("div", { class: "field" }, [
-    el("label", { class: "field__label" }, "Accepted answers"),
-    el("p", { class: "field__hint" },
-      "Any one of these matches, after trimming and (unless case-sensitive) lower-casing."),
+    el("label", { class: "field__label" }, "Accepted Correct Answers"),
+    el("p", { class: "field__hint mb-2" }, "Learner input will match if it equals any of these values."),
     rows,
-    el("div", { class: "row mt-2" }, [
-      button([icon("plus", 14), "Add accepted answer"], {
-        variant: "ghost", size: "sm", onClick: () => addRow(),
+    el("div", { class: "row mt-3" }, [
+      button([icon("plus", 14), "Add Accepted Keyword / Synonym"], {
+        variant: "secondary", size: "sm", onClick: () => addRow(),
       }),
     ]),
-    el("label", { class: "row t-sm mt-2" }, [caseCheckbox, "Case sensitive"]),
+    el("label", { class: "row t-sm mt-3" }, [caseCheckbox, "Require exact case matching"]),
   ]);
 
   return {
@@ -163,7 +190,7 @@ function matchingEditor(question) {
 
   const addRightRow = (label = "") => {
     const input = el("input", {
-      class: "control grow", type: "text", value: label, placeholder: "Right-hand item",
+      class: "control grow", type: "text", value: label, placeholder: "Right item (definition/match)",
     });
     input.addEventListener("input", refreshPairSelects);
     const row = el("div", { class: "row" }, [
@@ -182,7 +209,7 @@ function matchingEditor(question) {
     pairSelects.push(pairSelect);
     const row = el("div", { class: "row" }, [
       el("input", {
-        class: "control grow", type: "text", value: label, placeholder: "Left-hand item",
+        class: "control grow", type: "text", value: label, placeholder: "Left item (term)",
       }),
       pairSelect,
       button(icon("trash", 14), {
@@ -195,7 +222,6 @@ function matchingEditor(question) {
     if (pairedIndex !== null && pairedIndex >= 0) pairSelect.value = String(pairedIndex);
   };
 
-  // Right rows first — the left rows' pairing selects read from them.
   if (rightItems.length) rightItems.forEach((item) => addRightRow(item.label));
   else { addRightRow(); addRightRow(); }
 
@@ -211,17 +237,17 @@ function matchingEditor(question) {
 
   const node = el("div", { class: "grid grid--halves" }, [
     el("div", { class: "field" }, [
-      el("label", { class: "field__label" }, "Left-hand items"),
+      el("label", { class: "field__label" }, "Left Terms"),
       leftRows,
       el("div", { class: "row mt-2" }, [
-        button([icon("plus", 14), "Add item"], { variant: "ghost", size: "sm", onClick: () => addLeftRow() }),
+        button([icon("plus", 14), "Add Left Item"], { variant: "secondary", size: "sm", onClick: () => addLeftRow() }),
       ]),
     ]),
     el("div", { class: "field" }, [
-      el("label", { class: "field__label" }, "Right-hand items"),
+      el("label", { class: "field__label" }, "Right Definitions / Targets"),
       rightRows,
       el("div", { class: "row mt-2" }, [
-        button([icon("plus", 14), "Add item"], { variant: "ghost", size: "sm", onClick: () => addRightRow() }),
+        button([icon("plus", 14), "Add Right Item"], { variant: "secondary", size: "sm", onClick: () => addRightRow() }),
       ]),
     ]),
   ]);
@@ -240,9 +266,6 @@ function matchingEditor(question) {
         return { ok: false, error: "Add at least two items on each side." };
       }
       const rightIndexes = selects.map((select) => Number(select.value));
-      if (rightIndexes.some((i) => Number.isNaN(i))) {
-        return { ok: false, error: "Pair every left-hand item with a right-hand item." };
-      }
       return {
         ok: true, type: "MATCHING", left, right,
         pairs: rightIndexes.map((ri, li) => [li, ri]),
@@ -262,8 +285,16 @@ function orderingEditor(question) {
 
   const addRow = (label = "") => {
     const row = el("div", { class: "row" }, [
-      el("input", { class: "control grow", type: "text", value: label, placeholder: "Step" }),
-      button(icon("chevronDown", 14), {
+      el("span", { class: "badge badge--brand t-xs" }, "Step"),
+      el("input", { class: "control grow", type: "text", value: label, placeholder: "Describe this step" }),
+      button(icon("arrowUp", 14), {
+        variant: "ghost", size: "sm", "aria-label": "Move up",
+        onClick: () => {
+          const prev = row.previousElementSibling;
+          if (prev) rows.insertBefore(row, prev);
+        },
+      }),
+      button(icon("arrowDown", 14), {
         variant: "ghost", size: "sm", "aria-label": "Move down",
         onClick: () => {
           const next = row.nextElementSibling;
@@ -271,7 +302,10 @@ function orderingEditor(question) {
         },
       }),
       button(icon("trash", 14), {
-        variant: "ghost", size: "sm", "aria-label": "Remove", onClick: () => row.remove(),
+        variant: "ghost", size: "sm", "aria-label": "Remove",
+        onClick: () => {
+          if (rows.children.length > 2) row.remove();
+        },
       }),
     ]);
     rows.append(row);
@@ -281,12 +315,11 @@ function orderingEditor(question) {
   else { addRow(); addRow(); addRow(); }
 
   const node = el("div", { class: "field" }, [
-    el("label", { class: "field__label" }, "Steps, in the correct order"),
-    el("p", { class: "field__hint" },
-      "Top to bottom is the correct sequence. Learners see them shuffled and reorder to match."),
+    el("label", { class: "field__label" }, "Steps in Correct Chronological Order"),
+    el("p", { class: "field__hint mb-2" }, "Top to bottom is the correct sequence. The player will shuffle them for learners."),
     rows,
-    el("div", { class: "row mt-2" }, [
-      button([icon("plus", 14), "Add step"], { variant: "ghost", size: "sm", onClick: () => addRow() }),
+    el("div", { class: "row mt-3" }, [
+      button([icon("plus", 14), "Add Sequence Step"], { variant: "secondary", size: "sm", onClick: () => addRow() }),
     ]),
   ]);
 
@@ -309,16 +342,6 @@ function buildTypeEditor(type, question) {
   return multipleChoiceEditor(question);
 }
 
-/**
- * Persists whatever a type editor's collect() returned. Always clears every
- * type's tables first — replace-wholesale, the same approach this page
- * already used for `choices` alone, just extended to cover the new tables so
- * switching a question's type never leaves stale cross-type rows behind.
- *
- * MATCHING/ORDERING items get client-generated ids so the answer key can
- * reference them directly, rather than depending on the order Supabase
- * happens to return freshly-inserted rows in.
- */
 async function saveTypeData(questionId, data) {
   await sb.from("choices").delete().eq("question_id", questionId);
   await sb.from("question_items").delete().eq("question_id", questionId);
@@ -376,26 +399,17 @@ async function render(admin) {
     return;
   }
 
-  setTitle(`Assessment — ${course.title}`);
+  setTitle(`Assessment Studio — ${course.title}`);
 
   const existing = Array.isArray(course.quizzes) ? course.quizzes[0] : course.quizzes;
 
-  const back = el("a", {
-    class: "link t-sm row",
-    href: `/admin/program.html?id=${programId}`,
-  }, [icon("arrowLeft", 14), course.title]);
-
-  /* --- No assessment yet -------------------------------------------------- */
-
   if (!existing) {
     mount("#app",
-      el("div", { class: "page-head" }, el("div", {}, [back, el("h1", { class: "display mt-1" }, "Assessment")])),
       card(emptyState({
         iconName: "graduationCap",
         title: "No assessment on this course yet",
-        description:
-          "Every course ends in one assessment. Learners must pass it before the course counts as complete.",
-        action: button("Create the assessment", {
+        description: "Every course ends in one assessment. Learners must pass it before the course counts as complete.",
+        action: button("Create Assessment", {
           onClick: async () => {
             await sb.from("quizzes").insert({ course_id: course.id });
             render(admin);
@@ -405,172 +419,57 @@ async function render(admin) {
     return;
   }
 
-  // The one legitimate read of every answer key.
   const quiz = await rpc("admin_quiz", { p_quiz_id: existing.id });
   if (!quiz || quiz.ok === false) {
     mount("#app", emptyState({
       iconName: "lock",
-      title: "That assessment could not be loaded",
+      title: "Assessment could not be loaded",
       action: buttonLink("Back to the programme", `/admin/program.html?id=${programId}`),
     }));
     return;
   }
 
-  // Filled in once the page head below is built. A settings save patches
-  // these directly instead of re-fetching and rebuilding the whole page.
-  let pageTitleEl = null, pageMetaEl = null;
+  const questions = [...(quiz.questions ?? [])].sort((a, b) => a.position - b.position);
+  let activeQuestionIndex = 0;
 
-  /* --- Settings ----------------------------------------------------------- */
+  // ---------------------------------------------------------------------------
+  // Studio Top Bar & Learner Preview
+  // ---------------------------------------------------------------------------
 
-  const settings = el("form", { class: "row row--wrap", novalidate: true }, [
-    el("div", { "data-message": "", style: { width: "100%" } }),
-    field({ label: "Title", name: "title", value: quiz.title, required: true }),
-    field({
-      label: "Pass mark (%)", name: "passMark", type: "number",
-      min: 1, max: 100, value: quiz.pass_mark_percent, required: true,
-    }),
-    field({
-      label: "Max attempts", name: "maxAttempts", type: "number",
-      min: 1, max: 10, value: quiz.max_attempts, required: true,
-    }),
-    el("button", { class: "btn btn--secondary", type: "submit" }, "Save"),
-  ]);
+  const previewBtn = el("button", {
+    class: "btn btn--accent btn--sm",
+    type: "button",
+  }, [icon("eye", 16), "Review Assessment as Learner"]);
 
-  settings.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const nextValues = {
-      title: settings.elements.title.value.trim(),
-      pass_mark_percent: Number(settings.elements.passMark.value),
-      max_attempts: Number(settings.elements.maxAttempts.value),
-    };
-
-    setPending(settings, true);
-    const { error } = await sb.from("quizzes").update(nextValues).eq("id", quiz.id);
-    setPending(settings, false);
-    if (error) return setFormMessage(settings, error.message);
-
-    // The header (title + question/pass-mark/attempts summary) is the only
-    // other thing on the page that shows these values — patch it directly.
-    Object.assign(quiz, nextValues);
-    if (pageTitleEl) pageTitleEl.textContent = quiz.title;
-    if (pageMetaEl) {
-      pageMetaEl.textContent =
-        `${quiz.questions.length} questions · ${quiz.pass_mark_percent}% to pass · ` +
-        `${quiz.max_attempts} attempts`;
-    }
-    setFormMessage(settings, "Saved.", "success");
+  previewBtn.addEventListener("click", () => {
+    openLearnerPreview({
+      title: `${course.title} · Assessment`,
+      type: "quiz",
+      data: {
+        title: quiz.title || "Course Assessment",
+        passMarkPercent: quiz.pass_mark_percent,
+        questions,
+      },
+    });
   });
 
-  /* --- Question editor ---------------------------------------------------- */
-
-  function questionCard(question, index) {
-    const typeSelect = el("select", { class: "control", style: { width: "auto" } }, [
-      el("option", { value: "MULTIPLE_CHOICE", selected: question.question_type === "MULTIPLE_CHOICE" }, "Multiple choice"),
-      el("option", { value: "SHORT_TEXT", selected: question.question_type === "SHORT_TEXT" }, "Short text"),
-      el("option", { value: "MATCHING", selected: question.question_type === "MATCHING" }, "Matching"),
-      el("option", { value: "ORDERING", selected: question.question_type === "ORDERING" }, "Ordering"),
-    ]);
-
-    const typeFieldsSlot = el("div", { class: "mt-2" });
-    let editor = buildTypeEditor(question.question_type, question);
-    typeFieldsSlot.replaceChildren(editor.node);
-
-    typeSelect.addEventListener("change", () => {
-      editor = buildTypeEditor(typeSelect.value, question);
-      typeFieldsSlot.replaceChildren(editor.node);
-    });
-
-    const form = el("form", { class: "stack", novalidate: true }, [
-      el("div", { "data-message": "" }),
-      field({
-        label: "Question", name: "prompt", as: "textarea", rows: 2,
-        required: true, value: question.prompt,
-      }),
-      el("div", { class: "field" }, [
-        el("label", { class: "field__label" }, "Question type"),
-        typeSelect,
+  const headerBanner = el("div", { class: "studio-banner mb-6" }, [
+    el("div", { class: "stack stack--sm" }, [
+      el("div", { class: "row row--wrap" }, [
+        el("a", { class: "link t-sm subtle", href: `/admin/program.html?id=${programId}` }, `← ${course.title}`),
+        el("span", { class: "subtle t-xs" }, "/"),
+        el("span", { class: "badge badge--brand" }, "Assessment Studio"),
       ]),
-      typeFieldsSlot,
-      field({
-        label: "Explanation", name: "explanation", as: "textarea", rows: 2,
-        value: question.explanation ?? "",
-        hint: "Optional. Shown on the results screen after submission.",
-      }),
-      el("div", { class: "row" }, [
-        el("button", { class: "btn btn--primary btn--sm", type: "submit" }, "Save question"),
-        button([icon("trash", 14), "Delete"], {
-          variant: "ghost", size: "sm", className: "push",
-          onClick: async () => {
-            if (!confirm("Delete this question?")) return;
-            await sb.from("questions").delete().eq("id", question.id);
-            render(admin);
-          },
-        }),
+      el("h1", { class: "display", style: { fontSize: "1.75rem" } }, quiz.title || "Course Assessment"),
+      el("p", { class: "subtle t-sm" }, [
+        `${questions.length} questions · Pass Mark: ${quiz.pass_mark_percent}% · Max attempts: ${quiz.max_attempts}`,
       ]),
-    ]);
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      setFormMessage(form, null);
-
-      const result = editor.collect();
-      if (!result.ok) return setFormMessage(form, result.error);
-
-      setPending(form, true);
-
-      await sb.from("questions").update({
-        prompt: form.elements.prompt.value.trim(),
-        explanation: form.elements.explanation.value.trim() || null,
-        question_type: typeSelect.value,
-      }).eq("id", question.id);
-
-      await saveTypeData(question.id, result);
-
-      setPending(form, false);
-      render(admin);
-    });
-
-    return el("li", {},
-      card([
-        cardHeader(`Question ${index + 1}`, { action: badge(TYPE_LABEL[question.question_type]) }),
-        cardBody(form),
-      ]));
-  }
-
-  /* --- Page --------------------------------------------------------------- */
-
-  const addQuestion = button([icon("plus", 16), "Add a question"], {
-    onClick: async () => {
-      const { data } = await sb.from("questions").insert({
-        quiz_id: quiz.id,
-        prompt: "New question",
-        position: quiz.questions.length + 1,
-      }).select("id").maybeSingle();
-      if (data) {
-        await sb.from("choices").insert([
-          { question_id: data.id, text: "", is_correct: true, position: 1 },
-          { question_id: data.id, text: "", is_correct: false, position: 2 },
-        ]);
-      }
-      render(admin);
-    },
-  });
-
-  pageTitleEl = el("h1", { class: "display mt-1" }, quiz.title);
-  pageMetaEl = el("p", {},
-    `${quiz.questions.length} questions · ${quiz.pass_mark_percent}% to pass · ` +
-    `${quiz.max_attempts} attempts`);
-
-  mount("#app",
-    el("div", { class: "page-head" }, [
-      el("div", {}, [
-        back,
-        pageTitleEl,
-        pageMetaEl,
-      ]),
+    ]),
+    el("div", { class: "row" }, [
+      previewBtn,
+      buttonLink("Back to Course", `/admin/program.html?id=${programId}`, { variant: "secondary", size: "sm" }),
       button([icon("trash", 14), "Delete assessment"], {
-        variant: "ghost",
+        variant: "ghost", size: "sm",
         onClick: async () => {
           if (!confirm(
             "Delete this assessment and all its questions? Learners' past attempts go with it."
@@ -580,18 +479,229 @@ async function render(admin) {
         },
       }),
     ]),
+  ]);
 
-    card([cardHeader("Settings"), cardBody(settings)], { className: "mt-4" }),
+  // ---------------------------------------------------------------------------
+  // Assessment Global Settings Form
+  // ---------------------------------------------------------------------------
 
-    quiz.questions.length
-      ? el("ol", { class: "stack mt-6" }, quiz.questions.map(questionCard))
-      : card(emptyState({
-          iconName: "graduationCap",
-          title: "No questions yet",
-          description: "Add the first one below.",
-        }), { className: "mt-6" }),
+  const settingsForm = el("form", { class: "card studio-card stack p-6 mb-6", novalidate: true }, [
+    el("div", { "data-message": "" }),
+    el("h2", { class: "display", style: { fontSize: "1.25rem" } }, "Assessment Scoring & Rules"),
+    el("div", { class: "grid grid--thirds" }, [
+      field({ label: "Assessment Title", name: "title", value: quiz.title, required: true }),
+      field({
+        label: "Pass Mark (%)", name: "passMark", type: "number",
+        min: 1, max: 100, value: quiz.pass_mark_percent, required: true,
+      }),
+      field({
+        label: "Max Allowed Attempts", name: "maxAttempts", type: "number",
+        min: 1, max: 10, value: quiz.max_attempts, required: true,
+      }),
+    ]),
+    el("button", { class: "btn btn--primary push", type: "submit" }, "Save Rules"),
+  ]);
 
-    el("div", { class: "row mt-4" }, addQuestion));
+  settingsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const nextValues = {
+      title: settingsForm.elements.title.value.trim(),
+      pass_mark_percent: Number(settingsForm.elements.passMark.value),
+      max_attempts: Number(settingsForm.elements.maxAttempts.value),
+    };
+    setPending(settingsForm, true);
+    const { error } = await sb.from("quizzes").update(nextValues).eq("id", quiz.id);
+    setPending(settingsForm, false);
+    if (error) return setFormMessage(settingsForm, error.message);
+    Object.assign(quiz, nextValues);
+    setFormMessage(settingsForm, "Assessment settings saved.", "success");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Question Stepper Bar & Question Workspace
+  // ---------------------------------------------------------------------------
+
+  const questionHost = el("div", { class: "stack" });
+  const stepperBar = el("div", { class: "question-stepper mb-6" });
+
+  const renderStepper = () => {
+    stepperBar.replaceChildren(
+      ...questions.map((q, idx) => {
+        const isActive = idx === activeQuestionIndex;
+        const btn = el("button", {
+          type: "button",
+          class: isActive ? "question-step-btn is-active" : "question-step-btn",
+          onClick: () => {
+            activeQuestionIndex = idx;
+            renderStepper();
+            renderActiveQuestion();
+          },
+        }, [
+          el("span", { class: "dot-status" }),
+          `Q${idx + 1}`,
+        ]);
+        return btn;
+      }),
+      el("button", {
+        type: "button",
+        class: "question-step-btn",
+        style: { borderStyle: "dashed" },
+        onClick: async () => {
+          const { data } = await sb.from("questions").insert({
+            quiz_id: quiz.id,
+            prompt: "New question prompt",
+            question_type: "MULTIPLE_CHOICE",
+            position: questions.length + 1,
+          }).select("id").maybeSingle();
+          if (data) {
+            render(admin);
+          }
+        },
+      }, [icon("plus", 14), "Add Question"]),
+    );
+  };
+
+  const renderActiveQuestion = () => {
+    if (questions.length === 0) {
+      questionHost.replaceChildren(
+        card(emptyState({
+          iconName: "helpCircle",
+          title: "No questions in this assessment",
+          description: "Add your first question to test learner mastery.",
+          action: button("Add Question", {
+            onClick: async () => {
+              await sb.from("questions").insert({
+                quiz_id: quiz.id,
+                prompt: "First question prompt",
+                question_type: "MULTIPLE_CHOICE",
+                position: 1,
+              });
+              render(admin);
+            },
+          }),
+        })),
+      );
+      return;
+    }
+
+    const question = questions[activeQuestionIndex];
+    let selectedType = question.question_type ?? "MULTIPLE_CHOICE";
+    let editor = buildTypeEditor(selectedType, question);
+
+    // Type picker cards
+    const typePicker = el("div", { class: "question-type-picker" },
+      Object.entries(TYPE_CONFIG).map(([typeKey, cfg]) => {
+        const isSelected = selectedType === typeKey;
+        const typeCard = el("button", {
+          type: "button",
+          class: isSelected ? "question-type-card is-active" : "question-type-card",
+          onClick: () => {
+            selectedType = typeKey;
+            [...typePicker.children].forEach((c) => c.classList.remove("is-active"));
+            typeCard.classList.add("is-active");
+            editor = buildTypeEditor(selectedType, question);
+            editorSlot.replaceChildren(editor.node);
+          },
+        }, [
+          el("div", { class: "question-type-card__icon" }, icon(cfg.icon, 18)),
+          el("div", { class: "question-type-card__info" }, [
+            el("strong", {}, cfg.label),
+            el("span", {}, cfg.hint),
+          ]),
+        ]);
+        return typeCard;
+      }),
+    );
+
+    const editorSlot = el("div", {}, editor.node);
+
+    const form = el("form", { class: "card studio-card stack p-6", novalidate: true }, [
+      el("div", { "data-message": "" }),
+      el("div", { class: "row row--between mb-4 pb-3", style: { borderBottom: "1px solid var(--line)" } }, [
+        el("div", { class: "row" }, [
+          el("span", { class: "badge badge--brand font-semibold" }, `Question ${activeQuestionIndex + 1} of ${questions.length}`),
+          el("span", { class: "subtle t-xs" }, TYPE_CONFIG[selectedType]?.label),
+        ]),
+        el("div", { class: "row" }, [
+          button(icon("trash", 14), {
+            variant: "ghost", size: "sm", "aria-label": "Delete question",
+            onClick: async () => {
+              if (confirm(`Delete Question ${activeQuestionIndex + 1}?`)) {
+                await sb.from("questions").delete().eq("id", question.id);
+                render(admin);
+              }
+            },
+          }),
+        ]),
+      ]),
+      el("label", { class: "field__label" }, "Select Question Type"),
+      typePicker,
+      field({
+        label: "Question Prompt / Stem", name: "prompt", as: "textarea", rows: 3,
+        required: true, value: question.prompt,
+        placeholder: "e.g. Which of the following is a mandatory requirement under Clause 5.2?",
+      }),
+      editorSlot,
+      field({
+        label: "Feedback & Explanation (shown after assessment submission)", name: "explanation",
+        as: "textarea", rows: 2, value: question.explanation ?? "",
+        placeholder: "e.g. Clause 5.2 explicitly requires top management to establish a quality policy.",
+      }),
+      el("div", { class: "row row--between pt-4", style: { borderTop: "1px solid var(--line)" } }, [
+        el("button", { class: "btn btn--primary", type: "submit" }, "Save Question"),
+        el("div", { class: "row" }, [
+          button(icon("arrowLeft", 14), {
+            variant: "secondary", size: "sm", disabled: activeQuestionIndex === 0,
+            onClick: () => { activeQuestionIndex--; renderStepper(); renderActiveQuestion(); },
+          }),
+          button(icon("arrowRight", 14), {
+            variant: "secondary", size: "sm", disabled: activeQuestionIndex === questions.length - 1,
+            onClick: () => { activeQuestionIndex++; renderStepper(); renderActiveQuestion(); },
+          }),
+        ]),
+      ]),
+    ]);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setFormMessage(form, null);
+
+      const prompt = form.elements.prompt.value.trim();
+      if (!prompt) return setFormMessage(form, "Write a prompt for this question.");
+
+      const result = editor.collect();
+      if (!result.ok) return setFormMessage(form, result.error);
+
+      setPending(form, true);
+      const { error } = await sb.from("questions").update({
+        prompt,
+        question_type: result.type,
+        explanation: form.elements.explanation.value.trim() || null,
+      }).eq("id", question.id);
+
+      if (error) {
+        setPending(form, false);
+        return setFormMessage(form, error.message);
+      }
+
+      await saveTypeData(question.id, result);
+      setPending(form, false);
+      setFormMessage(form, "Question saved successfully.", "success");
+    });
+
+    questionHost.replaceChildren(form);
+  };
+
+  renderStepper();
+  renderActiveQuestion();
+
+  mount("#app", el("div", { class: "shell section--tight" }, [
+    headerBanner,
+    settingsForm,
+    el("h2", { class: "display mb-3", style: { fontSize: "1.25rem" } }, "Question Builder"),
+    stepperBar,
+    questionHost,
+  ]));
 }
 
 export async function init() {
@@ -599,3 +709,5 @@ export async function init() {
   appChrome(admin);
   await render(admin);
 }
+
+

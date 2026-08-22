@@ -18,7 +18,7 @@ import { track } from "./analytics.js";
 // Source assets: 374x146 (colour) and 1024x341 (white).
 const RATIO = { colour: 146 / 374, white: 341 / 1024 };
 
-export function logo({ variant = "colour", width = 168 } = {}) {
+export function logo({ variant = "colour", width = 168, loading } = {}) {
   return el("img", {
     src: variant === "white"
       ? "/assets/brand/wha-butterfly-white.png"
@@ -26,6 +26,8 @@ export function logo({ variant = "colour", width = 168 } = {}) {
     alt: "Wareham & Associates",
     width,
     height: Math.round(width * RATIO[variant]),
+    decoding: "async",
+    loading: loading ?? undefined,
     style: { width: `${width}px`, height: "auto" },
   });
 }
@@ -471,7 +473,7 @@ export function footerNodes(user = null) {
   return [
     el("div", { class: "shell site-footer__cols" }, [
       el("div", {}, [
-        logo({ width: 150 }),
+        logo({ width: 150, loading: "lazy" }),
         el("p", { class: "site-footer__blurb" },
           "International standards and compliance consulting, training and facilitation."),
       ]),

@@ -94,8 +94,15 @@ export const PREVIEW_LIMIT = 6;
 export async function init() {
   publicChrome();
 
-  mount("#trust", trustNodes());
-  mount("#steps", stepsNodes());
+  const trustHost = document.querySelector("#trust");
+  if (trustHost && trustHost.children.length === 0) {
+    mount(trustHost, trustNodes());
+  }
+
+  const stepsHost = document.querySelector("#steps");
+  if (stepsHost && stepsHost.children.length === 0) {
+    mount(stepsHost, stepsNodes());
+  }
 
   // Only the catalogue needs the database; everything above renders instantly
   // from the HTML.
